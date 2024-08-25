@@ -119,7 +119,11 @@ if codigo_input:
                 actual_qty = int(record['snps_um__ActualQt__c'])
                 work_place_name = record['snps_um__WorkPlace__r']['Name']  # Extraído de cada registro
                 cost_price = record['snps_um__Process__r']['Process_cost__c']
-
+                if cost_price is None:
+                    cost_price = 0
+                else:
+                    costprice = str(round(cost_price,2))
+                    
                 table_data.append([
                     record['Name'],  # 作業オーダー
                     process_name,  # 工程
@@ -127,9 +131,9 @@ if codigo_input:
                     actual_qty,  # 数量, sem casas decimais
                     status,  # ステータス traduzido
                     work_place_name,   # 作業場所
-                    str(round(cost_price,2)) # 工程単価
+                    cost_price # 工程単価
                 ])
-
+            
             # Cria o DataFrame
             df = pd.DataFrame(table_data, columns=headers)
 
