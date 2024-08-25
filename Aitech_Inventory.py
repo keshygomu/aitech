@@ -268,7 +268,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     with st.popover("再確認待ち"):
-        st.dataframe(primeira_contagem)
+        st.dataframe(primeira_contagem.iloc[:,:9])
 with col2:
     with st.popover("現在棚卸詳細"):
         st.dataframe(df_existente)
