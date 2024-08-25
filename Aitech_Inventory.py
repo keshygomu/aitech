@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
-from simple_salesforce import Salesforce
 from consumer_details import DOMAIN, USERNAME, PASSWORD, CONSUMER_KEY, CONSUMER_SECRET
 import os
 from datetime import datetime
 import requests
 from openpyxl import load_workbook, Workbook
+from simple_salesforce import Salesforce
 
 
 st.image('aitech_logo.png', use_column_width=True)
