@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from consumer_details import DOMAIN, USERNAME, PASSWORD, CONSUMER_KEY, CONSUMER_SECRET
+#from consumer_details import DOMAIN, USERNAME, PASSWORD, CONSUMER_KEY, CONSUMER_SECRET
 import os
 from datetime import datetime
 import requests
