@@ -290,7 +290,6 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
                               last_non_zero_quantity.get('作業場所', ''),
                               cost_price])
     except Exception as e:
-        st.warning(f"Falha ao salvar arquivo{e}")
         pass
 
 # Botão de confirmação da entrada de dados
