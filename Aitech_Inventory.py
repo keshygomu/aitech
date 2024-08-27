@@ -3,6 +3,7 @@ import pandas as pd
 from simple_salesforce import Salesforce
 #from consumer_details import DOMAIN, USERNAME, PASSWORD, CONSUMER_KEY, CONSUMER_SECRET
 import os
+import pytz
 from datetime import datetime
 import requests
 from openpyxl import load_workbook, Workbook
@@ -31,6 +32,9 @@ credentials_dict = {
     "client_x509_cert_url": credentials["client_x509_cert_url"],
     "universe_domain": credentials["universe_domain"],
 }
+
+# Definir o fuso horário do Japão (JST)
+jst = pytz.timezone('Asia/Tokyo')
 
 # Fornecer o caminho para o arquivo JSON baixado
 creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
@@ -96,7 +100,7 @@ nome_arquivo = ""
 
 # Verifica se o arquivo Excel existe e faz a checagem
 if codigo_formatado:
-    nome_arquivo = f"棚卸_{datetime.now().strftime('%Y%m')}.xlsx"
+    nome_arquivo = f"棚卸_{datetime.now(jst).strftime('%Y%m')}.xlsx"
     total_prodorder = 0
     total_prodorder_check = 0
 
@@ -225,7 +229,7 @@ botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and codigo_inpu
 # Função para salvar os dados em um arquivo Excel
 def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_quantity, cost_price):
     # Formata o nome do arquivo Excel com a data atual
-    data_atual = datetime.now().strftime("%Y%m")
+    data_atual = datetime.now(jst).strftime("%Y%m")
     nome_arquivo = f"棚卸_{data_atual}.xlsx"
 
     if os.path.exists(nome_arquivo):
@@ -243,13 +247,13 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
             while sheet.cell(row=row_index, column=col_index).value is not None:
                 col_index += 1
             # Escreve os novos dados na próxima coluna vazia
-            sheet.cell(row=row_index, column=col_index, value=datetime.now().strftime("%H:%M:%S"))  # Horário
+            sheet.cell(row=row_index, column=col_index, value=datetime.now(jst).strftime("%H:%M:%S"))  # Horário
             sheet.cell(row=row_index, column=col_index + 1, value=quantidade)  # Quantidade
             sheet.cell(row=row_index, column=col_index + 2, value=codigo_responsavel)  # Código do Responsável
 
         else:
             # Adiciona nova linha se o código não existir
-            sheet.append([datetime.now().strftime("%H:%M:%S"),
+            sheet.append([datetime.now(jst).strftime("%H:%M:%S"),
                           codigo_formatado,
                           int(quantidade),
                           int(codigo_responsavel),
@@ -267,7 +271,7 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
         sheet.append(colunas)
 
         # Adiciona os dados na nova linha
-        sheet.append([datetime.now().strftime("%H:%M:%S"),
+        sheet.append([datetime.now(jst).strftime("%H:%M:%S"),
             codigo_formatado, int(quantidade),
             int(codigo_responsavel),
             item_name,
