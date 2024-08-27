@@ -4,4 +4,4 @@ openpyxl
 requests
 gspread
 gspread_dataframe
-oauth2client.service_account
+google-auth
