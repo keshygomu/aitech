@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from simple_salesforce import Salesforce
-from consumer_details import DOMAIN, USERNAME, PASSWORD, CONSUMER_KEY, CONSUMER_SECRET
+#from consumer_details import DOMAIN, USERNAME, PASSWORD, CONSUMER_KEY, CONSUMER_SECRET
 import os
 from datetime import datetime
 import requests
@@ -15,7 +15,7 @@ from gspread_dataframe import set_with_dataframe
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 # Fornecer o caminho para o arquivo JSON baixado
-creds = ServiceAccountCredentials.from_json_keyfile_name("credenciais_google.json", scope)
+creds = ServiceAccountCredentials.from_json_keyfile_name(st.secrets("google_service_account"), scope)
 
 # Autorizar e inicializar o cliente gspread
 client = gspread.authorize(creds)
@@ -39,10 +39,10 @@ def authenticate_salesforce():
     auth_url = f"{DOMAIN}/services/oauth2/token"
     auth_data = {
         'grant_type': 'password',
-        'client_id': CONSUMER_KEY,
-        'client_secret': CONSUMER_SECRET,
-        'username': USERNAME,
-        'password': PASSWORD
+        'client_id': st.secrets('CONSUMER_KEY'),
+        'client_secret': st.secrets('CONSUMER_SECRET'),
+        'username': st.secrets('USERNAME'),
+        'password': st.secrets('PASSWORD')
     }
     response = requests.post(auth_url, data=auth_data)
     response.raise_for_status()
