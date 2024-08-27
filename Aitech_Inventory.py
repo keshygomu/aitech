@@ -43,8 +43,6 @@ creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
 client = gspread.authorize(creds)
 
 st.image('aitech_logo.png', use_column_width=True)
-# Título da aplicação
-#st.subheader("棚卸入力フォーム")
 
 # Inicializa as variáveis no session_state para controlar os valores dos inputs
 if "botao_confirmar_ativo" not in st.session_state:
@@ -254,6 +252,16 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
         else:
             # Adiciona nova linha se o código não existir
             sheet.append([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
+                          codigo_formatado,
+                          int(quantidade),
+                          int(codigo_responsavel),
+                          item_name, last_non_zero_quantity.get('工程', ''),
+                          int(last_non_zero_quantity.get('順序', '')),
+                          last_non_zero_quantity.get('作業場所', ''),
+                          cost_price])
+
+    spreadsheet = client.open("棚卸_記録").sheet1
+    spreadsheet.append.row([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
                           codigo_formatado,
                           int(quantidade),
                           int(codigo_responsavel),
