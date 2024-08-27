@@ -7,15 +7,33 @@ from datetime import datetime
 import requests
 from openpyxl import load_workbook, Workbook
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from gspread_dataframe import set_with_dataframe
 
 
 # Definir o escopo
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
+# Acessar as credenciais do Streamlit secrets
+credentials = st.secrets["google_service_account"]
+
+# Converter as credenciais para um dicionário
+credentials_dict = {
+    "type": credentials["type"],
+    "project_id": credentials["project_id"],
+    "private_key_id": credentials["private_key_id"],
+    "private_key": credentials["private_key"],
+    "client_email": credentials["client_email"],
+    "client_id": credentials["client_id"],
+    "auth_uri": credentials["auth_uri"],
+    "token_uri": credentials["token_uri"],
+    "auth_provider_x509_cert_url": credentials["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": credentials["client_x509_cert_url"],
+    "universe_domain": credentials["universe_domain"],
+}
+
 # Fornecer o caminho para o arquivo JSON baixado
-creds = ServiceAccountCredentials.from_json_keyfile_name(st.secrets("google_service_account"), scope)
+creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
 
 # Autorizar e inicializar o cliente gspread
 client = gspread.authorize(creds)
