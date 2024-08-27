@@ -54,7 +54,7 @@ def get_key(base):
 
 # Função para autenticar e criar uma instância do Salesforce
 def authenticate_salesforce():
-    auth_url = f"{DOMAIN}/services/oauth2/token"
+    auth_url = f"{st.secrets('DOMAIN')}/services/oauth2/token"
     auth_data = {
         'grant_type': 'password',
         'client_id': st.secrets('CONSUMER_KEY'),
