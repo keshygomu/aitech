@@ -2,3 +2,6 @@ simple-salesforce
 pandas
 openpyxl
 requests
+gspread
+gspread_dataframe
+oauth2client.service_account
