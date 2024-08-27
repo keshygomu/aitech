@@ -281,7 +281,7 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
 
     try:
         spreadsheet = client.open("棚卸_記録").sheet1
-        spreadsheet.append.row([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
+        spreadsheet.append_row([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
                               codigo_formatado,
                               int(quantidade),
                               int(codigo_responsavel),
@@ -290,7 +290,8 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
                               last_non_zero_quantity.get('作業場所', ''),
                               cost_price])
     except Exception as e:
-            st.warning(f"Falha ao salvar arquivo{e}")
+        st.warning(f"Falha ao salvar arquivo{e}")
+        pass
 
 # Botão de confirmação da entrada de dados
 if st.button("データ登録", disabled=not botao_confirmar_ativado, type="primary"):  # Texto do botão alterado
