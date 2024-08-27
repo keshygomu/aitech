@@ -279,8 +279,17 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
             cost_price])
     workbook.save(nome_arquivo)
 
-    try:
-        spreadsheet = client.open("棚卸_記録").sheet1
+    spreadsheet = client.open("棚卸_記録").sheet1
+    valores_coluna = spreadsheet.col_values(2)
+    
+    if codigo_formatado in valores_coluna:
+        linha_index = valores_coluna.index(codigo_formatado)+1
+        valores_linha = spreadsheet.row_values(linha_index)
+        proxima_celula_index = len([cel for cel in valores_linha if cel.strip()])+1
+        spreadsheet.update_cell(linha_index, proxima_celula_index, vdatetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))  # Horário
+        spreadsheet.update_cell(linha_index, proxima_celula_index + 1, quantidade)  # Quantidade
+        spreadsheet.update_cell(linha_index, proxima_celula_index + 2, codigo_responsavel)  # Código do Responsável
+    else:
         spreadsheet.append_row([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
                               codigo_formatado,
                               int(quantidade),
@@ -289,8 +298,6 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
                               int(last_non_zero_quantity.get('順序', '')),
                               last_non_zero_quantity.get('作業場所', ''),
                               cost_price])
-    except Exception as e:
-        pass
 
 # Botão de confirmação da entrada de dados
 if st.button("データ登録", disabled=not botao_confirmar_ativado, type="primary"):  # Texto do botão alterado
