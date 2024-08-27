@@ -1,12 +1,24 @@
 import streamlit as st
 import pandas as pd
-#from consumer_details import DOMAIN, USERNAME, PASSWORD, CONSUMER_KEY, CONSUMER_SECRET
+from simple_salesforce import Salesforce
+from consumer_details import DOMAIN, USERNAME, PASSWORD, CONSUMER_KEY, CONSUMER_SECRET
 import os
 from datetime import datetime
 import requests
 from openpyxl import load_workbook, Workbook
-from simple_salesforce import Salesforce
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from gspread_dataframe import set_with_dataframe
 
+
+# Definir o escopo
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+
+# Fornecer o caminho para o arquivo JSON baixado
+creds = ServiceAccountCredentials.from_json_keyfile_name("credenciais_google.json", scope)
+
+# Autorizar e inicializar o cliente gspread
+client = gspread.authorize(creds)
 
 st.image('aitech_logo.png', use_column_width=True)
 # Título da aplicação
@@ -24,13 +36,13 @@ def get_key(base):
 
 # Função para autenticar e criar uma instância do Salesforce
 def authenticate_salesforce():
-    auth_url = f"{st.secrets["DOMAIN"]}/services/oauth2/token"
+    auth_url = f"{DOMAIN}/services/oauth2/token"
     auth_data = {
         'grant_type': 'password',
-        'client_id': st.secrets["CONSUMER_KEY"],
-        'client_secret': st.secrets["CONSUMER_SECRET"],
-        'username': st.secrets["USERNAME"],
-        'password': st.secrets["PASSWORD"]
+        'client_id': CONSUMER_KEY,
+        'client_secret': CONSUMER_SECRET,
+        'username': USERNAME,
+        'password': PASSWORD
     }
     response = requests.post(auth_url, data=auth_data)
     response.raise_for_status()
@@ -62,10 +74,11 @@ codigo_existente = False
 df_existente=[]
 primeira_contagem = []
 toda_contagem=[]
+nome_arquivo = ""
 
 # Verifica se o arquivo Excel existe e faz a checagem
 if codigo_formatado:
-    nome_arquivo = f"棚卸_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    nome_arquivo = f"棚卸_{datetime.now().strftime('%Y%m')}.xlsx"
     total_prodorder = 0
     total_prodorder_check = 0
 
@@ -122,8 +135,8 @@ if codigo_input:
                 if cost_price is None:
                     cost_price = 0
                 else:
-                    costprice = str(round(cost_price,2))
-                    
+                    cost_price = str(round(cost_price,2))
+
                 table_data.append([
                     record['Name'],  # 作業オーダー
                     process_name,  # 工程
@@ -133,7 +146,7 @@ if codigo_input:
                     work_place_name,   # 作業場所
                     cost_price # 工程単価
                 ])
-            
+
             # Cria o DataFrame
             df = pd.DataFrame(table_data, columns=headers)
 
@@ -194,7 +207,7 @@ botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and codigo_inpu
 # Função para salvar os dados em um arquivo Excel
 def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_quantity, cost_price):
     # Formata o nome do arquivo Excel com a data atual
-    data_atual = datetime.now().strftime("%Y%m%d")
+    data_atual = datetime.now().strftime("%Y%m")
     nome_arquivo = f"棚卸_{data_atual}.xlsx"
 
     if os.path.exists(nome_arquivo):
@@ -268,17 +281,30 @@ if st.button("データ登録", disabled=not botao_confirmar_ativado, type="prim
     # Desabilita o botão de confirmação até uma nova entrada ser feita
     st.session_state.botao_confirmar_ativo = False
 
-col1, col2 = st.columns(2)
+google_sheet_state = True
 
-with col1:
-    with st.popover("再確認待ち"):
-        try:
-            st.dataframe(primeira_contagem.iloc[:,:9])
-        except:
-            st.dataframe(primeira_contagem)
+col1, col2, col3 = st.columns(3)
+
 with col2:
+    with st.popover("再確認待ち"):
+        if os.path.exists(nome_arquivo):
+            df_existente = pd.read_excel(nome_arquivo, sheet_name=0)
+            primeira_contagem = df_existente[df_existente['時間2'].isna()]
+            google_sheet_state = False
+        if  len(primeira_contagem) > 0 :
+            st.dataframe(primeira_contagem.iloc[:,:9])
+        else:
+            st.warning("空")
+with col3:
     with st.popover("現在棚卸詳細"):
         st.dataframe(df_existente)
+
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("Google Sheet 保存", disabled=google_sheet_state):
+        spreadsheet = client.open("アイテック_棚卸").sheet1
+        set_with_dataframe(spreadsheet, df_existente)
 
 # Reativa o botão de confirmação quando o usuário começar a digitar em qualquer campo
 if not st.session_state.botao_confirmar_ativo:
