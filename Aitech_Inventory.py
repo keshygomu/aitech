@@ -286,7 +286,7 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
         linha_index = valores_coluna.index(codigo_formatado)+1
         valores_linha = spreadsheet.row_values(linha_index)
         proxima_celula_index = len([cel for cel in valores_linha if cel.strip()])+1
-        spreadsheet.update_cell(linha_index, proxima_celula_index, vdatetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))  # Horário
+        spreadsheet.update_cell(linha_index, proxima_celula_index, datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))  # Horário
         spreadsheet.update_cell(linha_index, proxima_celula_index + 1, quantidade)  # Quantidade
         spreadsheet.update_cell(linha_index, proxima_celula_index + 2, codigo_responsavel)  # Código do Responsável
     else:
