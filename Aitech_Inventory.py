@@ -247,13 +247,13 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
             while sheet.cell(row=row_index, column=col_index).value is not None:
                 col_index += 1
             # Escreve os novos dados na próxima coluna vazia
-            sheet.cell(row=row_index, column=col_index, value=datetime.now(jst).strftime("%H:%M:%S"))  # Horário
+            sheet.cell(row=row_index, column=col_index, value=datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))  # Horário
             sheet.cell(row=row_index, column=col_index + 1, value=quantidade)  # Quantidade
             sheet.cell(row=row_index, column=col_index + 2, value=codigo_responsavel)  # Código do Responsável
 
         else:
             # Adiciona nova linha se o código não existir
-            sheet.append([datetime.now(jst).strftime("%H:%M:%S"),
+            sheet.append([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
                           codigo_formatado,
                           int(quantidade),
                           int(codigo_responsavel),
