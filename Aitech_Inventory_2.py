@@ -320,7 +320,7 @@ try:
     lista_dados = lista_produtos()
     total_prodorder = lista_dados[3]
     total_prodorder_check = lista_dados[4]
-    st.warning(f"移行票 {total_prodorder}件(登録済み)　再確認 {total_prodorder_check}件")
+    st.warning(f"移行票 {total_prodorder}件(登録済み)　再確認待ち {total_prodorder_check}件")
 
     col1, col2, col3 = st.columns(3)
 
