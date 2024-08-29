@@ -1,42 +1,50 @@
-import streamlit as st
 import cv2
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 import numpy as np
-from pyzbar.pyzbar import decode
+import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 
-# Classe para processar o vídeo
-class QRCodeScanner(VideoProcessorBase):
+# Configuração do RTC (WebRTC)
+RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+
+# Classe para processar vídeo
+class VideoProcessor(VideoProcessorBase):
     def __init__(self):
-        self.qr_code = None
+        self.result_text = ""
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
+        
+        # Detecta e decodifica o QR Code
+        qr_decoder = cv2.QRCodeDetector()
+        data, points, _ = qr_decoder.detectAndDecode(img)
 
-        # Decodifica o QR Code na imagem capturada
-        decoded_objs = decode(img)
-        for obj in decoded_objs:
-            self.qr_code = obj.data.decode("utf-8")
-            # Desenhar um retângulo ao redor do QR Code
-            points = obj.polygon
-            if len(points) == 4:
-                pts = np.array(points, dtype=np.int32)
-                pts = pts.reshape((-1, 1, 2))
-                cv2.polylines(img, [pts], isClosed=True, color=(0, 255, 0), thickness=3)
+        if points is not None:
+            self.result_text = f"QR Code detected: {data}"
+            # Desenha um quadrado ao redor do QR Code detectado
+            points = np.int32(points).reshape(-1, 2)
+            for i in range(len(points)):
+                cv2.line(img, tuple(points[i]), tuple(points[(i + 1) % len(points)]), color=(0, 255, 0), thickness=2)
+        else:
+            self.result_text = "No QR Code detected"
 
-        return frame.from_ndarray(img, format="bgr24")
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# Função principal do Streamlit
-def main():
-    st.title("QRCode Scanner com Streamlit")
+    def get_result_text(self):
+        return self.result_text
 
-    # Inicializa o WebRTC
-    ctx = webrtc_streamer(key="qrscanner", video_processor_factory=QRCodeScanner)
+# Interface do Streamlit
+st.title("QR Code Detector")
 
-    # Exibe o QR Code detectado
-    if ctx.video_processor:
-        qr_code = ctx.video_processor.qr_code
-        if qr_code:
-            st.success(f"QR Code detectado: {qr_code}")
+# Inicializa o WebRTC
+ctx = webrtc_streamer(
+    key="example",
+    video_processor_factory=VideoProcessor,
+    rtc_configuration=RTC_CONFIGURATION,
+    media_stream_constraints={"video": True, "audio": False},
+    async_processing=True,
+)
 
-if __name__ == "__main__":
-    main()
+# Exibe o resultado do QR Code
+if ctx.video_processor:
+    result = ctx.video_processor.get_result_text()
+    st.write(result)
