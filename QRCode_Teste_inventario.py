@@ -22,16 +22,6 @@ if "botao_confirmar_ativo" not in st.session_state:
 def get_key(base):
     return f"{base}_{st.session_state.botao_confirmar_ativo}"
 
-
-# Campo de entrada para o código (texto)
-codigo_input_id = get_key("codigo_input")
-codigo_input = st.text_input(
-    "移行票番号を入力してください:",  # Label alterado
-    key=codigo_input_id
-)
-
-codigo_formatado = f"PO-{int(codigo_input):06d}" if codigo_input.isdigit() else None
-
 qr_code = qrcode_scanner(key="qrcode_scanner")
 if qr_code:
     st.write(f'**QR-コード**:{qr_code}')
@@ -43,7 +33,6 @@ def carregar_credenciais():
     if os.path.exists('secrets.toml'):
         # Executando localmente
         secrets = toml.load('secrets.toml')
-        codigo_formatado = f"PO-{int(codigo_input):06d}" if codigo_input.isdigit() else None
     else:
         # Executando no Streamlit Cloud
         secrets = st.secrets
@@ -136,7 +125,7 @@ def lista_produtos():
 # Verifica se o arquivo Excel existe e faz a checagem
 
 try:
-    if codigo_formatado or qr_code:
+    if qr_code:
         valores_coluna =lista_produtos()[2]
         if not codigo_formatado:
             codigo_formatado = qr_code
@@ -149,7 +138,7 @@ except:
 
 
     # Realiza a consulta ao Salesforce ao inserir o código
-if codigo_input or qr_code:
+if qr_code:
     try:
         sf = authenticate_salesforce()
         query = f"""
@@ -260,8 +249,7 @@ codigo_responsavel = st.text_input(
     key=codigo_responsavel_input_id)
 
 # Verificação se todos os campos estão preenchidos
-botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and quantidade and codigo_responsavel and (codigo_input or qr_code)
-
+botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and quantidade and codigo_responsavel and qr_code
 # Função para salvar os dados em um arquivo Excel
 def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_quantity, cost_price):
     # Formata o nome do arquivo com a data atual
