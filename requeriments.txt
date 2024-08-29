@@ -1,4 +1,0 @@
-simple-salesforce
-pandas
-openpyxl
-requests
