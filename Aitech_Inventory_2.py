@@ -316,13 +316,13 @@ if st.button("データ登録", disabled=not botao_confirmar_ativado, type="prim
 
 google_sheet_state = True
 
+col1, col2, col3 = st.columns(3)
+
 try:
     lista_dados = lista_produtos()
     total_prodorder = lista_dados[3]
     total_prodorder_check = lista_dados[4]
     st.warning(f"移行票 {total_prodorder}件(登録済み)　再確認待ち {total_prodorder_check}件")
-
-    col1, col2, col3 = st.columns(3)
 
     with col2:
         with st.popover("再確認待ち"):
