@@ -208,9 +208,10 @@ if codigo_input:
 
             ultimo_processo = last_non_zero_quantity['工程']
             ultimo_processo_passo = last_non_zero_quantity['順序']
+            ultimo_processo_place = last_non_zero_quantity['作業場所']
 
             st.write(f"**移行票№**: {prod_order_no}　ー　{original_order}")
-            st.write(f"**品目**: {item_name}　**ランク**: {rank}　**完了工程:({ultimo_processo_passo}){ultimo_processo}")
+            st.write(f"**品目**: {item_name}　**ランク**: {rank}　**完了工程:({ultimo_processo_passo}){ultimo_processo}={ultimo_processo_place}")
 
             # Aplica formatação condicional
             def highlight_zero_quantity(row):
