@@ -151,7 +151,6 @@ except:
     # Realiza a consulta ao Salesforce ao inserir o código
 if codigo_input or qr_code:
     try:
-        st.write(f'codigo formatado {codigo_formatado}')
         sf = authenticate_salesforce()
         query = f"""
         SELECT Name, snps_um__ProcessName__c, snps_um__ActualQt__c, snps_um__Item__r.Name, 
