@@ -22,16 +22,19 @@ if "botao_confirmar_ativo" not in st.session_state:
 def get_key(base):
     return f"{base}_{st.session_state.botao_confirmar_ativo}"
 
+
 # Campo de entrada para o código (texto)
 codigo_input_id = get_key("codigo_input")
 codigo_input = st.text_input(
     "移行票番号を入力してください:",  # Label alterado
-    key=codigo_input_id
+    key=codigo_input_id,value=st.session_state.campo_valor
 )
 
 codigo_formatado = f"PO-{int(codigo_input):06d}" if codigo_input.isdigit() else None
-qr_code = qrcode_scanner(key="qrcode_scanner")
 
+qr_code = qrcode_scanner(key="qrcode_scanner")
+if qr_code:
+    st.write(f'**QR-コード**:{qrcode}')
 
 
 # Função para carregar credenciais de acordo com o ambiente
