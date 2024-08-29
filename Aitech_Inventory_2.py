@@ -282,7 +282,7 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
                                 cost_price])
     except:
         worksheet1 = spreadsheet.worksheet("Sheet1")
-        nova_aba = spreadsheet.add_worksheet(title=nome_aba, rows="1000", cols="20")
+        nova_aba = spreadsheet.add_worksheet(title=nome_aba, rows="10000", cols="100")
         worksheet2 = spreadsheet.worksheet(nome_aba)
         valores_linha1 = worksheet1.row_values(1)
         cell_list = worksheet2.range(1, 1, 1, len(valores_linha1))
