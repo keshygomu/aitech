@@ -5,3 +5,4 @@ requests
 gspread
 gspread_dataframe
 google-auth
+streamlit_qrcode_scanner
