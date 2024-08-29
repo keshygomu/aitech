@@ -205,19 +205,22 @@ if codigo_input:
             except:
                 last_non_zero_quantity = None
                 acum_price = 0
-
-            ultimo_processo = last_non_zero_quantity['工程']
-            ultimo_processo_passo = last_non_zero_quantity['順序']
-            ultimo_processo_place = last_non_zero_quantity['作業場所']
-
+                
             st.write(f"**移行票№**: {prod_order_no}　ー　{original_order}")
-            st.write(f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**:({ultimo_processo_passo})　{ultimo_processo}　=>　{ultimo_processo_place}")
+
+            if not last_non_zero_quantity is None:
+                ultimo_processo = last_non_zero_quantity['工程']
+                ultimo_processo_passo = last_non_zero_quantity['順序']
+                ultimo_processo_place = last_non_zero_quantity['作業場所']
+                st.write(f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**:({ultimo_processo_passo})　{ultimo_processo}　=>　{ultimo_processo_place}")
+            else:
+                st.write(f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**:(0)")
 
             # Aplica formatação condicional
             def highlight_zero_quantity(row):
                 return ['background-color: lightgreen' if row['数量'] != 0 else '' for _ in row]
 
-
+            
             # Aplica a formatação ao DataFrame e exibe a tabela no Streamlit
             styled_df = df.style.apply(highlight_zero_quantity, axis=1)
             with st.popover("製造オーダー明細"):
