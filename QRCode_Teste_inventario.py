@@ -6,7 +6,6 @@ from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfigurati
 # Configuração do RTC (WebRTC)
 RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
-# Classe para processar vídeo
 class VideoProcessor(VideoProcessorBase):
     def __init__(self):
         self.result_text = ""
@@ -14,11 +13,16 @@ class VideoProcessor(VideoProcessorBase):
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
         
+        # Verificar se a imagem foi capturada corretamente
+        if img is None:
+            self.result_text = "No image captured"
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
+
         # Detecta e decodifica o QR Code
         qr_decoder = cv2.QRCodeDetector()
         data, points, _ = qr_decoder.detectAndDecode(img)
 
-        if points is not None:
+        if points is not None and data:
             self.result_text = f"QR Code detected: {data}"
             # Desenha um quadrado ao redor do QR Code detectado
             points = np.int32(points).reshape(-1, 2)
@@ -31,6 +35,7 @@ class VideoProcessor(VideoProcessorBase):
 
     def get_result_text(self):
         return self.result_text
+
 
 # Interface do Streamlit
 st.title("QR Code Detector")
