@@ -164,9 +164,6 @@ if codigo_input:
             weight = first_record['snps_um__Item__r']['snps_um__Weight__c']
             original_order = first_record['AITC_OrderQt__c']
 
-            st.write(f"**移行票№**: {prod_order_no}　ー　{original_order}")
-            st.write(f"**品目**: {item_name}　**品名**: {item_print_name}　**ランク**: {rank}　**重量**:　{weight}")
-
             # Cria a tabela para exibir os dados
             table_data = []
             headers = ["作業オーダー", "工程", "順序", "数量", "ステータス", "作業場所", "工程単価"]
@@ -209,6 +206,11 @@ if codigo_input:
                 last_non_zero_quantity = None
                 acum_price = 0
 
+            ultimo_processo = last_non_zero_quantity['工程']
+            ultimo_processo_passo = last_non_zero_quantity['順序']
+
+            st.write(f"**移行票№**: {prod_order_no}　ー　{original_order}")
+            st.write(f"**品目**: {item_name}　**ランク**: {rank}　完了工程:({ultimo_processo_passo}){ultimo_processo}")
 
             # Aplica formatação condicional
             def highlight_zero_quantity(row):
