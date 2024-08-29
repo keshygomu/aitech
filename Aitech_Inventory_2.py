@@ -316,24 +316,26 @@ if st.button("データ登録", disabled=not botao_confirmar_ativado, type="prim
 
 google_sheet_state = True
 
-lista_dados = lista_produtos()
-total_prodorder = lista_dados[3]
-total_prodorder_check = lista_dados[4]
-st.warning(f"移行票 {total_prodorder}件(登録済み)　再確認 {total_prodorder_check}件")
+try:
+    lista_dados = lista_produtos()
+    total_prodorder = lista_dados[3]
+    total_prodorder_check = lista_dados[4]
+    st.warning(f"移行票 {total_prodorder}件(登録済み)　再確認 {total_prodorder_check}件")
 
-col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns(3)
 
-with col2:
-    with st.popover("再確認待ち"):
-        if len(lista_dados[1]) > 0:
-            st.dataframe(lista_dados[1].iloc[:, :9])
-        else:
-            st.warning("空")
-with col3:
-    with st.popover("現在棚卸詳細"):
-        st.dataframe(lista_dados[0])
+    with col2:
+        with st.popover("再確認待ち"):
+            if len(lista_dados[1]) > 0:
+                st.dataframe(lista_dados[1].iloc[:, :9])
+            else:
+                st.warning("空")
+    with col3:
+        with st.popover("現在棚卸詳細"):
+            st.dataframe(lista_dados[0])
+except Exception as e:
+    st.warning("現在、在庫記録はありません。")
 
-col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("Google Sheet 保存", disabled=google_sheet_state):
         spreadsheet = client.open("アイテック_棚卸").sheet1
