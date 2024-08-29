@@ -30,9 +30,8 @@ codigo_input = st.text_input(
 )
 
 codigo_formatado = f"PO-{int(codigo_input):06d}" if codigo_input.isdigit() else None
-with st.popover("QRコード"):
-    qr_code = qrcode_scanner(key="qrcode_scanner")
-    st.write(qr_code)
+qr_code = qrcode_scanner(key="qrcode_scanner")
+
 
 
 # Função para carregar credenciais de acordo com o ambiente
