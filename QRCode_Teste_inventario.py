@@ -27,7 +27,7 @@ def get_key(base):
 codigo_input_id = get_key("codigo_input")
 codigo_input = st.text_input(
     "移行票番号を入力してください:",  # Label alterado
-    key=codigo_input_id,value=st.session_state.campo_valor
+    key=codigo_input_id
 )
 
 codigo_formatado = f"PO-{int(codigo_input):06d}" if codigo_input.isdigit() else None
