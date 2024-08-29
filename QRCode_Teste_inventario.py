@@ -29,10 +29,10 @@ codigo_input = st.text_input(
     key=codigo_input_id
 )
 
-qr_code = ""
 codigo_formatado = f"PO-{int(codigo_input):06d}" if codigo_input.isdigit() else None
 with st.popover("QRコード"):
     qr_code = qrcode_scanner(key="qrcode_scanner")
+    st.write(qr_code)
 
 
 # Função para carregar credenciais de acordo com o ambiente
@@ -146,7 +146,7 @@ except:
 
 
     # Realiza a consulta ao Salesforce ao inserir o código
-if codigo_input:
+if codigo_input or qr_code:
     try:
         sf = authenticate_salesforce()
         query = f"""
