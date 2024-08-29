@@ -256,7 +256,7 @@ codigo_responsavel = st.text_input(
     key=codigo_responsavel_input_id)
 
 # Verificação se todos os campos estão preenchidos
-botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and codigo_input and quantidade and codigo_responsavel
+botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and quantidade and codigo_responsavel and (codigo_input or qr_code)
 
 # Função para salvar os dados em um arquivo Excel
 def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_quantity, cost_price):
