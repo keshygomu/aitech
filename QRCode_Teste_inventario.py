@@ -34,7 +34,7 @@ codigo_formatado = f"PO-{int(codigo_input):06d}" if codigo_input.isdigit() else 
 
 qr_code = qrcode_scanner(key="qrcode_scanner")
 if qr_code:
-    st.write(f'**QR-コード**:{qrcode}')
+    st.write(f'**QR-コード**:{qr_code}')
 
 
 # Função para carregar credenciais de acordo com o ambiente
