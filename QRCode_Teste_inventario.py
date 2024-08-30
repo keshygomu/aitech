@@ -12,7 +12,7 @@ from google.oauth2.service_account import Credentials
 from gspread_dataframe import set_with_dataframe
 import toml
 
-st.image('aitech_logo.png', use_column_width=True)
+st.image('aitech_logo_B.png', use_column_width=True)
 
 # Inicializa as variáveis no session_state para controlar os valores dos inputs
 if "botao_confirmar_ativo" not in st.session_state:
