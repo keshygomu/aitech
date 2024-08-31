@@ -301,6 +301,7 @@ if st.button("データ登録", disabled=not botao_confirmar_ativado, type="prim
     try:
         botao_confirmar_ativado = True
         # Salva os dados no arquivo Excel
+        st.write('passou')
         st.write(f"{codigo}, {quantidade}, {codigo_responsavel}, {last_non_zero_quantity}, {cost_price}")
         salvar_dados_excel(codigo_input, quantidade, codigo_responsavel, last_non_zero_quantity, acum_price)
         st.success("データが正常に確認されました！")  # Mensagem de sucesso traduzida
