@@ -252,7 +252,7 @@ codigo_responsavel = st.text_input(
 botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and quantidade and codigo_responsavel and qr_code
 # Função para salvar os dados em um arquivo Excel
 def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_quantity, cost_price):
-    st.write((f"{codigo}, {quantidade}, {codigo_responsavel}, {last_non_zero_quantity}, {cost_price}")
+    st.write(f"{codigo}, {quantidade}, {codigo_responsavel}, {last_non_zero_quantity}, {cost_price}")
     # Formata o nome do arquivo com a data atual
     nome_aba  = datetime.now(jst).strftime("%Y%m%d")
     spreadsheet = client.open("棚卸_記録")
