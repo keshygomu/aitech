@@ -301,11 +301,11 @@ if st.button("データ登録", disabled=not botao_confirmar_ativado, type="prim
     try:
         botao_confirmar_ativado = True
         # Salva os dados no arquivo Excel
-        st.write(f"passou{codigo}")
+        st.write(f"passou{codigo_input}")
         st.write(f"passou{quantidade}")
         st.write(f"passou{codigo_responsavel}")
         st.write(f"passou{last_non_zero_quantity}")
-        st.write(f"passou{cost_price}")
+        st.write(f"passou{acum_price}")
         salvar_dados_excel(codigo_input, quantidade, codigo_responsavel, last_non_zero_quantity, acum_price)
         st.success("データが正常に確認されました！")  # Mensagem de sucesso traduzida
         st.write(f"移行票№: {codigo_formatado} / {item_name}")  # Código formatado e label atualizado
