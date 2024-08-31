@@ -296,13 +296,9 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
                               last_non_zero_quantity.get('作業場所', ''),
                               cost_price])
 
+
 # Botão de confirmação da entrada de dados
 if st.button("データ登録", disabled=not botao_confirmar_ativado, type="primary"):  # Texto do botão alterado
-    st.write(f"passou{qr_code}")
-    st.write(f"passou{quantidade}")
-    st.write(f"passou{codigo_responsavel}")
-    st.write(f"passou{last_non_zero_quantity}")
-    st.write(f"passou{acum_price}")
     try:
         botao_confirmar_ativado = True
         # Salva os dados no arquivo Excel
