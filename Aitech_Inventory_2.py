@@ -54,7 +54,7 @@ creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
 # Autorizar e inicializar o cliente gspread
 client = gspread.authorize(creds)
 
-st.image('aitech_logo.png', use_column_width=True)
+st.image('aitech_logo_B.png', use_column_width=True)
 
 # Inicializa as variáveis no session_state para controlar os valores dos inputs
 if "botao_confirmar_ativo" not in st.session_state:
