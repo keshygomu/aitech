@@ -114,16 +114,14 @@ def verificar_codigo(codigo_inserido):
     else:
         with main_container:
             st.error("Código não encontrado na lista de produtos!")
-            st.markdown(
-                """
+            # Aqui está o código JS diretamente
+            st.markdown("""
                 <script>
-                navigator.vibrate(200);  // Vibrar por 200ms
+                navigator.vibrate(200);  // Vibração por 200ms
                 var audio = new Audio('https://www.soundjay.com/button/sounds/beep-07.mp3');
                 audio.play();
                 </script>
-                """,
-                unsafe_allow_html=True
-            )
+                """, unsafe_allow_html=True)
 
 
 # Função principal para lidar com o código inserido
