@@ -109,10 +109,12 @@ def processar_codigo(produto_code):
 def verificar_codigo(codigo_inserido):
     if codigo_inserido in st.session_state["lista_produtos_iguais"]:
         with main_container:
-            st.title("**OK**")
+            st.image('OK.png', use_column_width=True)
+            #st.title("**OK**")
     else:
         with main_container:
-            st.title("**NG**")
+            st.image('NG.png', use_column_width=True)
+            #st.title("**NG**")
 
 
 # Função principal para lidar com o código inserido
