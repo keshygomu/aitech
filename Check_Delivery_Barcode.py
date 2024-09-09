@@ -113,7 +113,7 @@ def verificar_codigo(codigo_inserido):
     else:
         with main_container:
             st.image('NG.png', use_column_width=True)
-            st.audio("mixkit-critical-alarm-1004.wav", format="audio/wav", loop=False, autoplay=True)
+            st.audio("mixkit-critical-alarm-1004.wav", format="audio/wav", loop=True, autoplay=True)
             #st.title("**NG**")
 
 
