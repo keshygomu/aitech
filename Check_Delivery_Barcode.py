@@ -92,9 +92,8 @@ def processar_codigo(produto_code):
             st.session_state["lista_produtos_iguais"] = lista_produtos_iguais
 
             with main_container:
-                st.write(f"**バーコード**:{produto_code}")
-                #for produtos in lista_produtos_iguais:
-                #    st.write(f"{produtos}")
+                st.write(f"**バーコード**:   {produto_code}")
+
 
         else:
             with main_container:
@@ -114,6 +113,15 @@ def verificar_codigo(codigo_inserido):
     else:
         with main_container:
             st.image('NG.png', use_column_width=True)
+            st.markdown("""
+                            <audio autoplay>
+                                <source src="https://www.soundjay.com/button/sounds/beep-07.mp3" type="audio/mpeg">
+                            </audio>
+                            <script>
+                            var audio = new Audio('https://www.soundjay.com/button/sounds/beep-07.mp3');
+                            audio.play();
+                            <script>
+                        """, unsafe_allow_html=True)
             #st.title("**NG**")
 
 
