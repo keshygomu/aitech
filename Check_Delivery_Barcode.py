@@ -83,7 +83,6 @@ def processar_codigo(produto_code):
             Internal_Product = result['records'][0]['snps_um__Item__r']['Name']
             lista_produtos_iguais.append(Internal_Product)
 
-
             # Adicionar os produtos retornados à lista
             for record in result['records']:
                 Customer_Product = record['Name']
@@ -95,8 +94,8 @@ def processar_codigo(produto_code):
             with main_container:
                 st.write("Produtos encontrados:")
                 st.write(produto_code)
-                #for produtos in lista_produtos_iguais:
-                #    st.write(f"{produtos}")
+                for produtos in lista_produtos_iguais:
+                    st.write(f"{produtos}")
 
         else:
             with main_container:
