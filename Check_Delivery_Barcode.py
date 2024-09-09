@@ -11,7 +11,6 @@ import toml
 # Definir o fuso horário do Japão (JST)
 jst = pytz.timezone('Asia/Tokyo')
 
-
 # Função para carregar credenciais
 def carregar_credenciais():
     if os.path.exists('secrets.toml'):
@@ -19,7 +18,6 @@ def carregar_credenciais():
     else:
         secrets = st.secrets  # Executando no Streamlit Cloud
     return secrets
-
 
 # Função para autenticar Salesforce
 def authenticate_salesforce():
@@ -37,7 +35,6 @@ def authenticate_salesforce():
     instance_url = response.json()['instance_url']
     return Salesforce(instance_url=instance_url, session_id=access_token)
 
-
 # Função para procurar produtos no Salesforce
 def procura_produto(produto_code):
     sf = authenticate_salesforce()
@@ -49,7 +46,6 @@ def procura_produto(produto_code):
     """
     result = sf.query(query)
     return result
-
 
 # Carregar as credenciais
 secrets = carregar_credenciais()
@@ -69,12 +65,13 @@ if "lista_produtos_iguais" not in st.session_state:
 if "codigo_processado" not in st.session_state:
     st.session_state["codigo_processado"] = False
 
+if "Codigo_barras_temp" not in st.session_state:
+    st.session_state["Codigo_barras_temp"] = ""
 
 # Função para processar o primeiro código inserido e armazenar os resultados
 def processar_codigo(produto_code):
     lista_produtos_iguais = []
     try:
-        # Fazer a busca no Salesforce
         result = procura_produto(produto_code)
 
         if result['totalSize'] > 0:
@@ -83,17 +80,14 @@ def processar_codigo(produto_code):
             Internal_Product = result['records'][0]['snps_um__Item__r']['Name']
             lista_produtos_iguais.append(Internal_Product)
 
-            # Adicionar os produtos retornados à lista
             for record in result['records']:
                 Customer_Product = record['Name']
                 lista_produtos_iguais.append(Customer_Product)
 
-            # Salvar a lista de produtos na sessão
             st.session_state["lista_produtos_iguais"] = lista_produtos_iguais
 
             with main_container:
                 st.write(f"**バーコード**:   {produto_code}")
-
 
         else:
             with main_container:
@@ -103,42 +97,35 @@ def processar_codigo(produto_code):
         with main_container:
             st.write("Erro: ", e)
 
-
 # Função para verificar se o código está na lista após a busca
 def verificar_codigo(codigo_inserido):
     if codigo_inserido in st.session_state["lista_produtos_iguais"]:
         with main_container:
             st.image('OK.png', use_column_width=True)
-            #st.title("**OK**")
     else:
         with main_container:
             st.image('NG.png', use_column_width=True)
-            st.audio("mixkit-critical-alarm-1004.wav", format="audio/wav", loop=True, autoplay=True)
-            #st.title("**NG**")
-
+            st.audio("mixkit-critical-alarm-1004.wav", format="audio/wav", autoplay=True)
 
 # Função principal para lidar com o código inserido
 def handle_input():
     produto_code = st.session_state["Codigo_barras_temp"]
 
     if not st.session_state["codigo_processado"]:
-        # Processar o primeiro código e armazenar a lista de produtos
         processar_codigo(produto_code)
-        st.session_state["codigo_processado"] = True  # Marcar como processado
+        st.session_state["codigo_processado"] = True
     else:
-        # Verificar se o código inserido já existe na lista de produtos
         verificar_codigo(produto_code)
 
-    # Limpar o campo de texto após o processamento
-    st.session_state["Codigo_barras_temp"] = ""
-
+    # Não modificar o session_state diretamente após o campo ser instanciado
+    st.session_state["Codigo_barras_temp"] = ""  # Limpar o campo de entrada
 
 # Função para reiniciar o processo
 def reiniciar_processo():
-    st.session_state["lista_produtos_iguais"] = []  # Limpar a lista de produtos
-    st.session_state["codigo_processado"] = False  # Resetar a flag de processamento
-    #st.write("Processo reiniciado. Insira uma nova série de códigos de barras.")
-
+    st.session_state["lista_produtos_iguais"] = []
+    st.session_state["codigo_processado"] = False
+    # Não tentar modificar o estado do campo instanciado
+    st.session_state["Codigo_barras_temp"] = ""
 
 # Exibir o campo de texto para inserir código
 st.text_input("バーコードを入力してください", key="Codigo_barras_temp", on_change=handle_input)
