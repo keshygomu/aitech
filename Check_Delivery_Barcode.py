@@ -117,10 +117,6 @@ def verificar_codigo(codigo_inserido):
                             <audio autoplay>
                                 <source src="https://www.soundjay.com/button/sounds/beep-07.mp3" type="audio/mpeg">
                             </audio>
-                            #<script>
-                            #var audio = new Audio('https://www.soundjay.com/button/sounds/beep-07.mp3');
-                            #audio.play();
-                            #<script>
                         """, unsafe_allow_html=True)
             #st.title("**NG**")
 
