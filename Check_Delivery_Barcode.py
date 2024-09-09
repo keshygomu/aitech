@@ -60,7 +60,7 @@ main_container = st.container()
 
 # Fixar a imagem no topo
 with top_container:
-    st.image('aitech_logo.png', use_column_width=True)
+    st.image('aitech_logo_barcode.png', use_column_width=True)
 
 # Inicializar o estado da sessão, se necessário
 if "lista_produtos_iguais" not in st.session_state:
@@ -92,14 +92,13 @@ def processar_codigo(produto_code):
             st.session_state["lista_produtos_iguais"] = lista_produtos_iguais
 
             with main_container:
-                st.write("Produtos encontrados:")
-                st.write(produto_code)
-                for produtos in lista_produtos_iguais:
-                    st.write(f"{produtos}")
+                st.write(f"**バーコード**:{produto_code}")
+                #for produtos in lista_produtos_iguais:
+                #    st.write(f"{produtos}")
 
         else:
             with main_container:
-                st.write(f"{produto_code} não consta na lista de produtos, Contacte o Administrador")
+                st.write(f"{produto_code} 品番リストにありません。管理者に連絡してください")
 
     except Exception as e:
         with main_container:
@@ -110,10 +109,10 @@ def processar_codigo(produto_code):
 def verificar_codigo(codigo_inserido):
     if codigo_inserido in st.session_state["lista_produtos_iguais"]:
         with main_container:
-            st.success("Código inserido está na lista de produtos.")
+            st.title("**OK**")
     else:
         with main_container:
-            st.error("Código não encontrado na lista de produtos!")
+            st.title("**NG**")
 
 
 # Função principal para lidar com o código inserido
@@ -136,12 +135,12 @@ def handle_input():
 def reiniciar_processo():
     st.session_state["lista_produtos_iguais"] = []  # Limpar a lista de produtos
     st.session_state["codigo_processado"] = False  # Resetar a flag de processamento
-    st.write("Processo reiniciado. Insira uma nova série de códigos de barras.")
+    #st.write("Processo reiniciado. Insira uma nova série de códigos de barras.")
 
 
 # Exibir o campo de texto para inserir código
-st.text_input("Insira o Codigo de Barras", key="Codigo_barras_temp", on_change=handle_input)
+st.text_input("バーコードを入力してください", key="Codigo_barras_temp", on_change=handle_input)
 
 # Botão para reiniciar o processo
-if st.button("Reiniciar"):
+if st.button("クリア"):
     reiniciar_processo()
