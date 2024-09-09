@@ -114,10 +114,12 @@ def verificar_codigo(codigo_inserido):
     else:
         with main_container:
             st.error("Código não encontrado na lista de produtos!")
-            # Aqui está o código JS diretamente
+
+        # Exibir botão para ativar som e vibração após interação
+        if st.button("Ativar Som e Vibração"):
             st.markdown("""
                 <script>
-                navigator.vibrate(200);  // Vibração por 200ms
+                navigator.vibrate(200);  // Vibrar por 200ms
                 var audio = new Audio('https://www.soundjay.com/button/sounds/beep-07.mp3');
                 audio.play();
                 </script>
