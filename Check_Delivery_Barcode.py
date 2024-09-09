@@ -113,12 +113,7 @@ def verificar_codigo(codigo_inserido):
     else:
         with main_container:
             st.image('NG.png', use_column_width=True)
-            st.markdown("""
-                            <script>
-                            var audio = new Audio('https://www.soundjay.com/button/sounds/beep-07.mp3');
-                            audio.play();
-                            <script>
-                        """, unsafe_allow_html=True)
+            st.audio("mixkit-critical-alarm-1004.wav", format="audio/wav", loop=False, autoplay=True)
             #st.title("**NG**")
 
 
