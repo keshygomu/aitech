@@ -140,6 +140,10 @@ except:
     total_prodorder = 0
     total_prodorder_check = 0
 
+
+print("passou1")
+
+
 # Realiza a consulta ao Salesforce ao inserir o código
 if codigo_input:
     try:
@@ -155,31 +159,32 @@ if codigo_input:
         WHERE snps_um__ProdOrder__r.Name = '{codigo_formatado}'
         """
         result = sf.query(query)
-        father_id = result['records'][0]['snps_um__Item__c']
 
-        query = f"""
-                SELECT 
-                snps_um__ChildItem__c, snps_um__ChildItem__r.AITC_ProcessPattern__c 
-                FROM snps_um__Composition2__c
-                WHERE snps_um__ParentItem2__c = '{father_id}'
-                """
-        procura_shikyu1 = sf.query(query)
+        if result['totalSize'] > 0:
+            father_id = result['records'][0]['snps_um__Item__c']
+            query = f"""
+                    SELECT 
+                    snps_um__ChildItem__c, snps_um__ChildItem__r.AITC_ProcessPattern__c 
+                    FROM snps_um__Composition2__c
+                    WHERE snps_um__ParentItem2__c = '{father_id}'
+                    """
+            procura_shikyu1 = sf.query(query)
 
-        kosei = procura_shikyu1['records'][0]['snps_um__ChildItem__r']['AITC_ProcessPattern__c']
+            if procura_shikyu1['totalSize'] > 0:
+                kosei = procura_shikyu1['records'][0]['snps_um__ChildItem__r']['AITC_ProcessPattern__c']
+                query = f"""
+                        SELECT 
+                        snps_um__ProvideDivision__c, snps_um__PaidProvideDiv__c,
+                        snps_um__Account__r.Name 
+                        FROM snps_um__Process__c
+                        WHERE snps_um__ProcessPattern__c = '{kosei}'
+                        """
+                procura_shikyu2 = sf.query(query)
+                if procura_shikyu2['totalSize'] > 0:
+                    print(procura_shikyu2['records'][0]['snps_um__PaidProvideDiv__c'])
 
-        query = f"""
-                SELECT 
-                snps_um__ProvideDivision__c 
-                FROM snps_um__Process__c
-                WHERE snps_um__ProcessPattern__c = '{kosei}'
-                """
-
-        procura_shikyu2 = sf.query(query)
-
-        print(procura_shikyu2['records'][0]['snps_um__ProvideDivision__c'])
 
         #print(procura_shikyu2['records'][0]['snps_um__ProvideDivision__c'])
-
         lista_kotei = []
 
         if result['totalSize'] > 0:
@@ -191,6 +196,9 @@ if codigo_input:
             rank = first_record['snps_um__Item__r']['AITC_ItemRank__c']
             weight = first_record['snps_um__Item__r']['snps_um__Weight__c']
             original_order = first_record['AITC_OrderQt__c']
+
+            print("passou1")
+
             # Cria a tabela para exibir os dados
             table_data = []
             price = 0
@@ -232,6 +240,7 @@ if codigo_input:
             # Cria o DataFrame
             df = pd.DataFrame(table_data, columns=headers)
 
+            print("passou1")
             # Filtra o último valor maior que 0 da coluna "数量"
             try:
                 last_non_zero_quantity = df[df['数量'] > 0].iloc[-1]  # Filtra e seleciona a última linha
@@ -301,6 +310,7 @@ if codigo_input:
             st.warning("入力されたコードに対して、レコードが見つかりませんでした。")  # Aviso traduzido
             last_done_record = None  # Caso não encontre, não retorna uma linha
 
+        print("passou10")
         if lista_kotei:
             selecionado = st.selectbox('工程選択:', lista_kotei, index=last_done_index)
 
