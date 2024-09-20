@@ -11,6 +11,7 @@ from google.oauth2.service_account import Credentials
 from gspread_dataframe import set_with_dataframe
 import toml
 
+
 # Função para carregar credenciais de acordo com o ambiente
 def carregar_credenciais():
     if os.path.exists('secrets.toml'):
@@ -20,6 +21,7 @@ def carregar_credenciais():
         # Executando no Streamlit Cloud
         secrets = st.secrets
     return secrets
+
 
 # Carrega as credenciais
 secrets = carregar_credenciais()
@@ -105,9 +107,10 @@ codigo_formatado = f"PO-{int(codigo_input):06d}" if codigo_input.isdigit() else 
 df_todos = []
 df_filtrado = []
 codigo_existente = False
-valores_coluna=[]
+valores_coluna = []
 total_prodorder = 0
 total_prodorder_check = 0
+
 
 def lista_produtos():
     try:
@@ -121,24 +124,23 @@ def lista_produtos():
         df_filtrado = df_todos[df_todos['時間2'].isna() | (df_todos['時間2'] == '')]
         total_prodorder = len(df_todos)
         total_prodorder_check = len(df_filtrado)
-        return(df_todos,df_filtrado,valores_coluna,total_prodorder,total_prodorder_check)
+        return (df_todos, df_filtrado, valores_coluna, total_prodorder, total_prodorder_check)
     except Exception as e:
         print(f"Error{e}")
-        pass
+
+
 # Verifica se o arquivo Excel existe e faz a checagem
 
 try:
     if codigo_formatado:
-        valores_coluna =lista_produtos()[2]
+        valores_coluna = lista_produtos()[2]
         if codigo_formatado in valores_coluna.values:
             st.warning("登録済")  # Exibe a mensagem de alerta
 except:
     total_prodorder = 0
     total_prodorder_check = 0
 
-
-
-    # Realiza a consulta ao Salesforce ao inserir o código
+# Realiza a consulta ao Salesforce ao inserir o código
 if codigo_input:
     try:
         sf = authenticate_salesforce()
@@ -148,11 +150,37 @@ if codigo_input:
                snps_um__ProdOrder__r.Name, snps_um__Status__c, snps_um__WorkPlace__r.Name,
                snps_um__StockPlace__r.Name, snps_um__Item__c, snps_um__Process__r.Process_cost__c, 
                snps_um__Item__r.AITC_ItemRank__c, snps_um__Item__r.snps_um__Weight__c, 
-               AITC_OrderQt__c 
+               AITC_OrderQt__c, snps_um__EndDateTime__c 
         FROM snps_um__WorkOrder__c 
         WHERE snps_um__ProdOrder__r.Name = '{codigo_formatado}'
         """
         result = sf.query(query)
+        father_id = result['records'][0]['snps_um__Item__c']
+
+        query = f"""
+                SELECT 
+                snps_um__ChildItem__c, snps_um__ChildItem__r.AITC_ProcessPattern__c 
+                FROM snps_um__Composition2__c
+                WHERE snps_um__ParentItem2__c = '{father_id}'
+                """
+        procura_shikyu1 = sf.query(query)
+
+        kosei = procura_shikyu1['records'][0]['snps_um__ChildItem__r']['AITC_ProcessPattern__c']
+
+        query = f"""
+                SELECT 
+                snps_um__ProvideDivision__c 
+                FROM snps_um__Process__c
+                WHERE snps_um__ProcessPattern__c = '{kosei}'
+                """
+
+        procura_shikyu2 = sf.query(query)
+
+        print(procura_shikyu2['records'][0]['snps_um__ProvideDivision__c'])
+
+        #print(procura_shikyu2['records'][0]['snps_um__ProvideDivision__c'])
+
+        lista_kotei = []
 
         if result['totalSize'] > 0:
             # Exibe os itens que não se repetem no topo (considerando o primeiro registro)
@@ -163,10 +191,10 @@ if codigo_input:
             rank = first_record['snps_um__Item__r']['AITC_ItemRank__c']
             weight = first_record['snps_um__Item__r']['snps_um__Weight__c']
             original_order = first_record['AITC_OrderQt__c']
-
             # Cria a tabela para exibir os dados
             table_data = []
-            headers = ["作業オーダー", "工程", "順序", "数量", "ステータス", "作業場所", "工程単価"]
+            price = 0
+            headers = ["作業オーダー", "工程", "順序", "数量", "ステータス", "作業場所", "工程単価","累積単価","最後完了日"]
             for record in result['records']:
                 process_name = record['snps_um__ProcessName__c']
                 process_order_no = int(record['snps_um__ProcessOrderNo__c'])
@@ -174,10 +202,20 @@ if codigo_input:
                 actual_qty = int(record['snps_um__ActualQt__c'])
                 work_place_name = record['snps_um__WorkPlace__r']['Name']  # Extraído de cada registro
                 cost_price = record['snps_um__Process__r']['Process_cost__c']
+                done_date = record['snps_um__EndDateTime__c']
                 if cost_price is None:
                     cost_price = 0
                 else:
+                    price = cost_price + price
                     cost_price = str(round(cost_price, 2))
+
+                if done_date is None:
+                    done_date = 0
+                else:
+                    done_date = datetime.strptime(done_date, "%Y-%m-%dT%H:%M:%S.%f%z")
+                    done_date = done_date.strftime("%y/%m/%d")
+
+                lista_kotei.append(f"{process_order_no}:{process_name}")
 
                 table_data.append([
                     record['Name'],  # 作業オーダー
@@ -186,7 +224,9 @@ if codigo_input:
                     actual_qty,  # 数量, sem casas decimais
                     status,  # ステータス traduzido
                     work_place_name,  # 作業場所
-                    cost_price  # 工程単価
+                    cost_price,  # 工程単価
+                    str(round(price,2)),  #累積単価
+                    done_date
                 ])
 
             # Cria o DataFrame
@@ -205,42 +245,78 @@ if codigo_input:
             except:
                 last_non_zero_quantity = None
                 acum_price = 0
-                
-            st.write(f"**移行票№**: {prod_order_no}　ー　{original_order}")
 
-            if not last_non_zero_quantity is None:
-                ultimo_processo = last_non_zero_quantity['工程']
-                ultimo_processo_passo = last_non_zero_quantity['順序']
-                ultimo_processo_place = last_non_zero_quantity['作業場所']
-                st.write(f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**:({ultimo_processo_passo})　{ultimo_processo}　=>　{ultimo_processo_place}")
+            last_date_record = ""
+            last_done_record = ""
+            last_done_index = 0
+
+            try:
+                last_done_record = df[df['ステータス'] == "作業完了"].iloc[-1]
+                last_done_index = int(last_done_record.name)
+                last_date_record = last_done_record["最後完了日"]
+                if last_done_record["順序"] != "999":
+                    if df["数量"].iloc[last_done_index+1]>0:
+                        last_inprod_record = df[df['ステータス'] == "製造中"].iloc[-1]
+                        last_done_record["数量"] = str(int(last_done_record['数量'])-int(last_inprod_record["数量"]))
+                        #print(last_done_record["数量"])
+                last_done_price = 0
+                x = 0
+                for record in result['records']:
+                    if x <= last_done_index:
+                        last_done_price = last_done_price + float(record['snps_um__Process__r']['Process_cost__c'])
+                        x = x + 1
+            except:
+                last_done_record = df.iloc[0]
+                last_done_price = 0
+
+
+
+
+
+            st.write(f"**移行票№**: {prod_order_no}　ー　{original_order} 　ー　 **最後完了日**:{last_date_record}")
+
+            if not last_done_record is None:
+                ultimo_processo = last_done_record['工程']
+                ultimo_processo_passo = last_done_record['順序']
+                ultimo_processo_place = last_done_record['作業場所']
+                st.write(
+                    f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**:({ultimo_processo_passo})　{ultimo_processo}　=>　{ultimo_processo_place}")
             else:
                 st.write(f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**:(0)")
 
+
             # Aplica formatação condicional
             def highlight_zero_quantity(row):
-                return ['background-color: lightgreen' if row['数量'] != 0 else '' for _ in row]
+                return ['background-color: green' if row['数量'] != 0 else '' for _ in row]
 
-            
+
             # Aplica a formatação ao DataFrame e exibe a tabela no Streamlit
-            styled_df = df.style.apply(highlight_zero_quantity, axis=1)
+            df_reduzido = df.iloc[:,:-2]
+            styled_df = df_reduzido.style.apply(highlight_zero_quantity, axis=1)
             with st.popover("製造オーダー明細"):
                 st.dataframe(styled_df)
-                st.text(f"工程終了までの単価:  　{str(round(acum_price, 3))}")
+                st.text(f"工程終了までの単価:  　{str(round(last_done_price, 3))}")
 
         else:
             st.warning("入力されたコードに対して、レコードが見つかりませんでした。")  # Aviso traduzido
-            last_non_zero_quantity = None  # Caso não encontre, não retorna uma linha
+            last_done_record = None  # Caso não encontre, não retorna uma linha
+
+        if lista_kotei:
+            selecionado = st.selectbox('工程選択:', lista_kotei, index=last_done_index)
+
     except Exception as e:
         st.error(f"Salesforceへの問い合わせでエラーが発生しました: {str(e)}")  # Erro traduzido
-        last_non_zero_quantity = None
+        last_done_record = None
 else:
-    last_non_zero_quantity = None
+    last_done_record = None
+
+
 
 # Campo de entrada para a quantidade (texto), preenchido com o último valor maior que 0
 quantidade_input_id = get_key("quantidade_input")
 quantidade = st.text_input(
     "数量:", max_chars=10,
-    value=str(last_non_zero_quantity['数量']) if last_non_zero_quantity is not None else "0",
+    value=str(last_done_record['数量']) if last_done_record is not None else "0",
     key=quantidade_input_id
 )
 
@@ -254,10 +330,11 @@ codigo_responsavel = st.text_input(
 # Verificação se todos os campos estão preenchidos
 botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and codigo_input and quantidade and codigo_responsavel
 
+
 # Função para salvar os dados em um arquivo Excel
-def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_quantity, cost_price):
+def salvar_dados_excel(codigo, quantidade, codigo_responsavel, ordem, ordem_nome, last_done_record, cost_price):
     # Formata o nome do arquivo com a data atual
-    nome_aba  = datetime.now(jst).strftime("%Y%m%d")
+    nome_aba = datetime.now(jst).strftime("%Y%m%d")
     spreadsheet = client.open("棚卸_記録")
     try:
         worksheet = spreadsheet.worksheet(nome_aba)
@@ -268,18 +345,20 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
             valores_linha = worksheet.row_values(linha_index)
             proxima_celula_index = len([cel for cel in valores_linha if cel.strip()]) + 1
             worksheet.update_cell(linha_index, proxima_celula_index,
-                                datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))  # Horário
+                                  datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"))  # Horário
             worksheet.update_cell(linha_index, proxima_celula_index + 1, quantidade)  # Quantidade
             worksheet.update_cell(linha_index, proxima_celula_index + 2, codigo_responsavel)  # Código do Responsável
+            worksheet.update_cell(linha_index, proxima_celula_index + 3, int(ordem))  # Numero do Work_Order
+
         else:
             worksheet.append_row([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
-                                codigo_formatado,
-                                int(quantidade),
-                                int(codigo_responsavel),
-                                item_name, last_non_zero_quantity.get('工程', ''),
-                                int(last_non_zero_quantity.get('順序', '')),
-                                last_non_zero_quantity.get('作業場所', ''),
-                                cost_price])
+                                  codigo_formatado,
+                                  int(quantidade),
+                                  int(codigo_responsavel),
+                                  item_name, ordem_nome,
+                                  int(ordem),
+                                  last_done_record.get('作業場所', ''),
+                                  cost_price])
     except:
         worksheet1 = spreadsheet.worksheet("Sheet1")
         nova_aba = spreadsheet.add_worksheet(title=nome_aba, rows="10000", cols="100")
@@ -291,20 +370,23 @@ def salvar_dados_excel(codigo, quantidade, codigo_responsavel, last_non_zero_qua
         worksheet2.update_cells(cell_list)
 
         worksheet2.append_row([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
-                              codigo_formatado,
-                              int(quantidade),
-                              int(codigo_responsavel),
-                              item_name, last_non_zero_quantity.get('工程', ''),
-                              int(last_non_zero_quantity.get('順序', '')),
-                              last_non_zero_quantity.get('作業場所', ''),
-                              cost_price])
+                               codigo_formatado,
+                               int(quantidade),
+                               int(codigo_responsavel),
+                               item_name, ordem_nome,
+                               int(ordem),
+                               last_done_record.get('作業場所', ''),
+                               cost_price])
+
 
 # Botão de confirmação da entrada de dados
 if st.button("データ登録", disabled=not botao_confirmar_ativado, type="primary"):  # Texto do botão alterado
     try:
         botao_confirmar_ativado = True
         # Salva os dados no arquivo Excel
-        salvar_dados_excel(codigo_input, quantidade, codigo_responsavel, last_non_zero_quantity, acum_price)
+        #print(codigo_input, quantidade, codigo_responsavel, last_done_record, last_done_price)
+        ordem, ordem_nome = selecionado.split(":",1)
+        salvar_dados_excel(codigo_input, quantidade, codigo_responsavel, ordem, ordem_nome, last_done_record, last_done_price)
         st.success("データが正常に確認されました！")  # Mensagem de sucesso traduzida
         st.write(f"移行票№: {codigo_formatado} / {item_name}")  # Código formatado e label atualizado
         st.write(f"数量: {quantidade}     担当者コード: {codigo_responsavel}")  # Label atualizado
@@ -334,6 +416,7 @@ try:
         with st.popover("現在棚卸詳細"):
             st.dataframe(lista_dados[0])
 except Exception as e:
+    print(e)
     st.warning("現在、在庫記録はありません。")
 
 with col1:
@@ -344,3 +427,4 @@ with col1:
 # Reativa o botão de confirmação quando o usuário começar a digitar em qualquer campo
 if not st.session_state.botao_confirmar_ativo:
     st.session_state.botao_confirmar_ativo = True
+
