@@ -97,7 +97,7 @@ status_mapping = {
 # Campo de entrada para o código (texto)
 codigo_input_id = get_key("codigo_input")
 codigo_input = st.text_input(
-    "移行票番号を入力してください:",  # Label alterado
+    "移行票の数値部分のみを入力してください:",  # Label alterado
     key=codigo_input_id
 )
 
@@ -128,9 +128,7 @@ def lista_produtos():
     except Exception as e:
         print(f"Error{e}")
 
-
 # Verifica se o arquivo Excel existe e faz a checagem
-
 try:
     if codigo_formatado:
         valores_coluna = lista_produtos()[2]
@@ -139,10 +137,6 @@ try:
 except:
     total_prodorder = 0
     total_prodorder_check = 0
-
-
-print("passou1")
-
 
 # Realiza a consulta ao Salesforce ao inserir o código
 if codigo_input:
@@ -171,6 +165,7 @@ if codigo_input:
             procura_shikyu1 = sf.query(query)
 
             if procura_shikyu1['totalSize'] > 0:
+                print(procura_shikyu1['records'][0]['snps_um__ChildItem__c'])
                 kosei = procura_shikyu1['records'][0]['snps_um__ChildItem__r']['AITC_ProcessPattern__c']
                 query = f"""
                         SELECT 
@@ -182,7 +177,6 @@ if codigo_input:
                 procura_shikyu2 = sf.query(query)
                 if procura_shikyu2['totalSize'] > 0:
                     print(procura_shikyu2['records'][0]['snps_um__PaidProvideDiv__c'])
-
 
         #print(procura_shikyu2['records'][0]['snps_um__ProvideDivision__c'])
         lista_kotei = []
@@ -196,8 +190,6 @@ if codigo_input:
             rank = first_record['snps_um__Item__r']['AITC_ItemRank__c']
             weight = first_record['snps_um__Item__r']['snps_um__Weight__c']
             original_order = first_record['AITC_OrderQt__c']
-
-            print("passou1")
 
             # Cria a tabela para exibir os dados
             table_data = []
@@ -240,7 +232,6 @@ if codigo_input:
             # Cria o DataFrame
             df = pd.DataFrame(table_data, columns=headers)
 
-            print("passou1")
             # Filtra o último valor maior que 0 da coluna "数量"
             try:
                 last_non_zero_quantity = df[df['数量'] > 0].iloc[-1]  # Filtra e seleciona a última linha
@@ -278,10 +269,6 @@ if codigo_input:
                 last_done_record = df.iloc[0]
                 last_done_price = 0
 
-
-
-
-
             st.write(f"**移行票№**: {prod_order_no}　ー　{original_order} 　ー　 **最後完了日**:{last_date_record}")
 
             if not last_done_record is None:
@@ -292,7 +279,6 @@ if codigo_input:
                     f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**:({ultimo_processo_passo})　{ultimo_processo}　=>　{ultimo_processo_place}")
             else:
                 st.write(f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**:(0)")
-
 
             # Aplica formatação condicional
             def highlight_zero_quantity(row):
@@ -310,7 +296,6 @@ if codigo_input:
             st.warning("入力されたコードに対して、レコードが見つかりませんでした。")  # Aviso traduzido
             last_done_record = None  # Caso não encontre, não retorna uma linha
 
-        print("passou10")
         if lista_kotei:
             selecionado = st.selectbox('工程選択:', lista_kotei, index=last_done_index)
 
