@@ -124,9 +124,7 @@ def lista_produtos():
 try:
     if qr_code:
         valores_coluna =lista_produtos()[2]
-        if not codigo_formatado:
-            codigo_formatado = qr_code
-        if codigo_formatado  in valores_coluna.values:
+        if qr_code  in valores_coluna.values:
             st.warning("登録済")  # Exibe a mensagem de alerta
 except:
     total_prodorder = 0
