@@ -121,16 +121,14 @@ def lista_produtos():
         print(f"Error{e}")
 # Verifica se o arquivo Excel existe e faz a checagem
 
-try:
-    if qr_code:
-        valores_coluna =lista_produtos()[2]
-        if qr_code  in valores_coluna.values:
-            st.warning("登録済")  # Exibe a mensagem de alerta
-except:
-    total_prodorder = 0
-    total_prodorder_check = 0
-
-
+if qr_code:
+    valores_coluna =lista_produtos()[2]
+    existe = any(valores_coluna.str.slice(0,9) == qr_code)
+    if existe:
+        st.warning("登録済")
+    else:
+        total_prodorder = 0
+        total_prodorder_check = 0
 
     # Realiza a consulta ao Salesforce ao inserir o código
 if qr_code:
