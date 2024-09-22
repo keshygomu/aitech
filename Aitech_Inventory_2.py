@@ -129,14 +129,15 @@ def lista_produtos():
         print(f"Error{e}")
 
 # Verifica se o arquivo Excel existe e faz a checagem
-try:
-    if codigo_formatado:
-        valores_coluna = lista_produtos()[2]
-        if codigo_formatado in valores_coluna.values:
-            st.warning("登録済")  # Exibe a mensagem de alerta
-except:
-    total_prodorder = 0
-    total_prodorder_check = 0
+
+if codigo_formatado:
+    valores_coluna =lista_produtos()[2]
+    existe = any(valores_coluna.str.slice(0,9) == codigo_formatado)
+    if existe:
+        st.warning("登録済")
+    else:
+        total_prodorder = 0
+        total_prodorder_check = 0
 
 # Realiza a consulta ao Salesforce ao inserir o código
 if codigo_input:
@@ -189,7 +190,6 @@ if codigo_input:
                     else:
                         pagamento = "無償支給"
 
-
         #print(procura_shikyu2['records'][0]['snps_um__ProvideDivision__c'])
         lista_kotei = []
 
@@ -227,7 +227,7 @@ if codigo_input:
                     done_date = datetime.strptime(done_date, "%Y-%m-%dT%H:%M:%S.%f%z")
                     done_date = done_date.strftime("%y/%m/%d")
 
-                lista_kotei.append(f"{process_order_no}:{process_name}")
+                lista_kotei.append(f"{process_order_no}:{process_name}:{work_place_name}")
 
                 table_data.append([
                     record['Name'],  # 作業オーダー
@@ -331,7 +331,7 @@ codigo_responsavel = st.text_input(
 botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and codigo_input and quantidade and codigo_responsavel
 
 # Função para salvar os dados em um arquivo Excel
-def salvar_dados_excel(codigo_formatado, quantidade, codigo_responsavel, ordem, ordem_nome, last_done_record, material, pagamento,peso):
+def salvar_dados_excel(codigo_formatado, quantidade, codigo_responsavel, ordem, ordem_nome, lugar, last_done_record, material, pagamento,peso):
     # Formata o nome do arquivo com a data atual
     nome_aba = datetime.now(jst).strftime("%Y%m%d")
     spreadsheet = client.open("棚卸_記録")
@@ -352,14 +352,14 @@ def salvar_dados_excel(codigo_formatado, quantidade, codigo_responsavel, ordem, 
             worksheet.update_cell(linha_index, proxima_celula_index + 2, codigo_responsavel)  # Código do Responsável
 
         else:
-            print(codigo_reformatado, quantidade, codigo_responsavel, ordem, ordem_nome, last_done_record, cost_price,material, pagamento)
+            print(codigo_reformatado, quantidade, codigo_responsavel, ordem, ordem_nome, ordem_local, last_done_record, cost_price,material, pagamento)
             worksheet.append_row([datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
                                   codigo_reformatado,
                                   int(quantidade),
                                   int(codigo_responsavel),
                                   item_name, ordem_nome,
                                   int(ordem),
-                                  last_done_record.get('作業場所', ''),
+                                  lugar,
                                   cost_price,
                                   material,
                                   pagamento,
@@ -380,7 +380,7 @@ def salvar_dados_excel(codigo_formatado, quantidade, codigo_responsavel, ordem, 
                                int(codigo_responsavel),
                                item_name, ordem_nome,
                                int(ordem),
-                               last_done_record.get('作業場所', ''),
+                               lugar,
                                cost_price,
                                material,
                                pagamento,
@@ -392,8 +392,8 @@ if st.button("データ登録", disabled=not botao_confirmar_ativado, type="prim
     try:
         botao_confirmar_ativado = True
         # Salva os dados no arquivo Excel
-        ordem, ordem_nome = selecionado.split(":",1)
-        salvar_dados_excel(codigo_formatado, quantidade, codigo_responsavel, ordem, ordem_nome, last_done_record, material, pagamento,peso)
+        ordem, ordem_nome, ordem_local = selecionado.split(":")
+        salvar_dados_excel(codigo_formatado, quantidade, codigo_responsavel, ordem, ordem_nome, ordem_local, last_done_record, material, pagamento,peso)
         st.success("データが正常に確認されました！")  # Mensagem de sucesso traduzida
         st.write(f"移行票№: {codigo_formatado} / {item_name}")  # Código formatado e label atualizado
         st.write(f"数量: {quantidade}     担当者コード: {codigo_responsavel}")  # Label atualizado
