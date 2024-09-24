@@ -116,28 +116,34 @@ def lista_produtos():
     try:
         nome_aba = datetime.now(jst).strftime("%Y%m%d")
         spreadsheet = client.open("棚卸_記録")
-        worksheet = spreadsheet.worksheet(nome_aba)
-        df_todos = pd.DataFrame(worksheet.get_all_values())
-        df_todos.columns = df_todos.iloc[0]
-        df_todos = df_todos[1:]
-        valores_coluna = df_todos["移行票№"]
-        df_filtrado = df_todos[df_todos['時間2'].isna() | (df_todos['時間2'] == '')]
-        total_prodorder = len(df_todos)
-        total_prodorder_check = len(df_filtrado)
-        return (df_todos, df_filtrado, valores_coluna, total_prodorder, total_prodorder_check)
+        sheet_names = [sheet.title for sheet in spreadsheet.worksheets()]
+        if nome_aba in sheet_names:
+            worksheet = spreadsheet.worksheet(nome_aba)
+            df_todos = pd.DataFrame(worksheet.get_all_values())
+            df_todos.columns = df_todos.iloc[0]
+            df_todos = df_todos[1:]
+            valores_coluna = df_todos["移行票№"]
+            df_filtrado = df_todos[df_todos['時間2'].isna() | (df_todos['時間2'] == '')]
+            total_prodorder = len(df_todos)
+            total_prodorder_check = len(df_filtrado)
+            return (df_todos, df_filtrado, valores_coluna, total_prodorder, total_prodorder_check)
     except Exception as e:
-        print(f"Error{e}")
+        pass
 
 # Verifica se o arquivo Excel existe e faz a checagem
 
 if codigo_formatado:
-    valores_coluna =lista_produtos()[2]
-    existe = any(valores_coluna.str.slice(0,9) == codigo_formatado)
-    if existe:
-        st.warning("登録済")
-    else:
-        total_prodorder = 0
-        total_prodorder_check = 0
+    lista = lista_produtos()
+    if lista:
+        valores_coluna =lista[2]
+        existe = any(valores_coluna.str.slice(0,9) == codigo_formatado)
+        if existe:
+            st.warning("登録済")
+        else:
+            total_prodorder = 0
+            total_prodorder_check = 0
+
+
 
 # Realiza a consulta ao Salesforce ao inserir o código
 if codigo_input:
