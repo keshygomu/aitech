@@ -262,7 +262,7 @@ if qr_code:
                 last_done_record = df[df['ステータス'] == "作業完了"].iloc[-1]
                 last_done_index = int(last_done_record.name)
                 last_date_record = last_done_record["最後完了日"]
-                if last_done_record["順序"] != "999":
+                if last_done_record["順序"] != 999:
                     if df["数量"].iloc[last_done_index+1]>0:
                         last_inprod_record = df[df['ステータス'] == "製造中"].iloc[-1]
                         last_done_record["数量"] = str(int(last_done_record['数量'])-int(last_inprod_record["数量"]))
