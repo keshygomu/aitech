@@ -277,9 +277,10 @@ if st.button("データ登録", disabled=not botao_confirmar_ativado, type="prim
         st.write(f"移行票№: {codigo_formatado} / {item_name}")
         st.write(f"数量: {quantidade}     担当者コード: {codigo_responsavel}")
         st.session_state.botao_confirmar_ativo = False
-        # Limpa os campos após o sucesso do try
         st.session_state.codigo_input = ""  # Limpa o campo de entrada do código
-        st.session_state[quantidade_input_id] = ""  # Limpa o campo quantidade
+        # Limpa o campo quantidade resetando o valor padrão para "0" no próximo ciclo
+        # Como quantidade é controlado pelo widget, o reset será refletido no próximo rerender
+        st.session_state[quantidade_input_id] = "0"  # Reinicia o valor do quantidade no session_state
     except Exception as e:
         st.write(f"生産が開始されていないため。移行票№: {codigo_formatado}　は登録されません。")
 
@@ -360,3 +361,4 @@ with col1:
 
 if not st.session_state.botao_confirmar_ativo:
     st.session_state.botao_confirmar_ativo = True
+
