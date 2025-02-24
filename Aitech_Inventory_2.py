@@ -362,3 +362,4 @@ with col1:
 if not st.session_state.botao_confirmar_ativo:
     st.session_state.botao_confirmar_ativo = True
 
+
