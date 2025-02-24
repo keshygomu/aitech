@@ -58,7 +58,8 @@ if "last_codigo" not in st.session_state:
 if "codigo_input" not in st.session_state:
     st.session_state.codigo_input = ""
 
-st.image('aitech_logo_B.png', use_column_width=True)
+# Exibe a imagem com use_container_width em vez de use_column_width
+st.image('aitech_logo_B.png', use_container_width=True)
 
 # Gera uma chave única para cada campo
 def get_key(base):
@@ -107,11 +108,12 @@ def carregar_dados_existentes_google_sheet():
 
 # Leitura do QR code
 qr_code = qrcode_scanner(key="qr_scanner")
+if qr_code is None:
+    st.info("Se a câmera não funcionar, tente usar o Safari ou recarregar a página.")
 
 # Campo de entrada manual com valor inicial do QR code, se disponível
 codigo_input_id = get_key("codigo_input")
 if qr_code:
-    # O QR code já vem no formato "PO-000000", então usamos diretamente
     if qr_code.startswith("PO-") and qr_code[3:].isdigit() and len(qr_code) == 9:
         st.session_state.codigo_input = qr_code[3:]  # Extrai apenas os dígitos para entrada manual
     else:
