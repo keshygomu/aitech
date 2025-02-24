@@ -114,6 +114,9 @@ if qr_code is None:
 if qr_code:
     if qr_code.startswith("PO-") and qr_code[3:].isdigit() and len(qr_code) == 9:
         st.session_state.codigo_input = qr_code[3:]  # Extrai apenas os dígitos para entrada manual
+        # Reseta quantidade para "0" ao ler um novo QR code, se ainda não foi registrado
+        if st.session_state.botao_confirmar_ativo:
+            st.session_state.quantidade_input = "0"
     else:
         st.warning("QR code inválido. Use o formato PO-000000.")
 
@@ -227,6 +230,9 @@ if codigo_formatado:
                 st.dataframe(styled_df.data)
 
             selecionado = st.selectbox('工程選択:', lista_kotei, index=len(lista_kotei)-1 if last_done_record is None else df.index[df['順序'] == last_done_record['順序']].tolist()[0])
+            # Atualiza quantidade com o valor do último registro, se disponível
+            if last_done_record is not None and st.session_state.botao_confirmar_ativo:
+                st.session_state.quantidade_input = str(last_done_record['数量'])
         else:
             st.warning("入力されたコードに対して、レコードが見つかりませんでした。")
             last_done_record = None
@@ -356,4 +362,3 @@ with col1:
 
 if not st.session_state.botao_confirmar_ativo:
     st.session_state.botao_confirmar_ativo = True
-
