@@ -57,12 +57,12 @@ if "last_codigo" not in st.session_state:
     st.session_state.last_codigo = ""
 if "codigo_input" not in st.session_state:
     st.session_state.codigo_input = ""
+if "quantidade_input" not in st.session_state:
+    st.session_state.quantidade_input = ""
+if "codigo_responsavel_input" not in st.session_state:
+    st.session_state.codigo_responsavel_input = ""
 
 st.image('aitech_logo_B.png', use_container_width=True)
-
-# Gera uma chave única para cada campo
-def get_key(base):
-    return f"{base}_{st.session_state.botao_confirmar_ativo}"
 
 # Função para autenticar no Salesforce (Cache por 10 minutos)
 @st.cache_data(ttl=600)
@@ -111,7 +111,6 @@ if qr_code is None:
     st.info("Se a câmera não funcionar, tente usar o Safari ou recarregar a página.")
 
 # Campo de entrada manual com valor inicial do QR code, se disponível
-codigo_input_id = get_key("codigo_input")
 if qr_code:
     if qr_code.startswith("PO-") and qr_code[3:].isdigit() and len(qr_code) == 9:
         st.session_state.codigo_input = qr_code[3:]  # Extrai apenas os dígitos para entrada manual
@@ -121,7 +120,7 @@ if qr_code:
 codigo_input = st.text_input(
     "移行票の数値部分のみを入力してください (ou escaneie o QR code):",
     value=st.session_state.codigo_input,
-    key=codigo_input_id
+    key="codigo_input"
 )
 
 # Formata o código para "PO-000000"
@@ -238,11 +237,8 @@ else:
     last_done_record = None
 
 # Campos de entrada
-quantidade_input_id = get_key("quantidade_input")
-quantidade = st.text_input("数量:", max_chars=10, value=str(last_done_record['数量']) if last_done_record is not None else "0", key=quantidade_input_id)
-
-codigo_responsavel_input_id = get_key("codigo_responsavel_input")
-codigo_responsavel = st.text_input("担当者コード", key=codigo_responsavel_input_id)
+quantidade = st.text_input("数量:", max_chars=10, value=st.session_state.quantidade_input, key="quantidade_input")
+codigo_responsavel = st.text_input("担当者コード", value=st.session_state.codigo_responsavel_input, key="codigo_responsavel_input")
 
 # Botão de confirmação
 botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and codigo_formatado and quantidade and codigo_responsavel
@@ -277,10 +273,9 @@ if st.button("データ登録", disabled=not botao_confirmar_ativado, type="prim
         st.write(f"移行票№: {codigo_formatado} / {item_name}")
         st.write(f"数量: {quantidade}     担当者コード: {codigo_responsavel}")
         st.session_state.botao_confirmar_ativo = False
+        # Limpa os campos após o sucesso do try
         st.session_state.codigo_input = ""  # Limpa o campo de entrada do código
-        # Limpa o campo quantidade resetando o valor padrão para "0" no próximo ciclo
-        # Como quantidade é controlado pelo widget, o reset será refletido no próximo rerender
-        st.session_state[quantidade_input_id] = "0"  # Reinicia o valor do quantidade no session_state
+        st.session_state.quantidade_input = ""  # Limpa o campo quantidade
     except Exception as e:
         st.write(f"生産が開始されていないため。移行票№: {codigo_formatado}　は登録されません。")
 
@@ -361,5 +356,4 @@ with col1:
 
 if not st.session_state.botao_confirmar_ativo:
     st.session_state.botao_confirmar_ativo = True
-
 
