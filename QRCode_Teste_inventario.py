@@ -22,14 +22,45 @@ def carregar_credenciais():
 # Carregar as credenciais
 secrets = carregar_credenciais()
 
+# Depuração: exibir o conteúdo completo de secrets
+st.write("Conteúdo completo de secrets:", dict(secrets))
+
 # Inicializar o Firebase usando as credenciais do secrets
 if not firebase_admin._apps:
-    # Converter explicitamente o objeto secrets["firebase"] para um dicionário Python
-    firebase_secrets = dict(secrets["firebase"])
-    cred = credentials.Certificate(firebase_secrets)
-    firebase_admin.initialize_app(cred, {
-        "databaseURL": "https://uminventory-4a2a8-default-rtdb.asia-southeast1.firebasedatabase.app/"
-    })
+    try:
+        if "firebase" in secrets:
+            firebase_secrets = dict(secrets["firebase"])
+            st.write("Firebase secrets antes da validação:", firebase_secrets)
+
+            # Verificar se todas as chaves obrigatórias estão presentes
+            required_keys = [
+                "type", "project_id", "private_key_id", "private_key",
+                "client_email", "client_id", "auth_uri", "token_uri",
+                "auth_provider_x509_cert_url", "client_x509_cert_url"
+            ]
+            missing_keys = [key for key in required_keys if key not in firebase_secrets or not firebase_secrets[key]]
+            if missing_keys:
+                st.error(f"Chaves obrigatórias ausentes em firebase_secrets: {missing_keys}")
+                st.stop()
+
+            # Garantir que private_key tenha quebras de linha preservadas
+            if isinstance(firebase_secrets["private_key"], str):
+                firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
+            else:
+                st.error("A chave 'private_key' não é uma string válida!")
+                st.stop()
+
+            st.write("Firebase secrets após validação:", firebase_secrets)
+            cred = credentials.Certificate(firebase_secrets)
+            firebase_admin.initialize_app(cred, {
+                "databaseURL": "https://uminventory-4a2a8-default-rtdb.asia-southeast1.firebasedatabase.app/"
+            })
+        else:
+            st.error("A chave 'firebase' não foi encontrada em secrets!")
+            st.stop()
+    except Exception as e:
+        st.error(f"Erro ao inicializar o Firebase: {e}")
+        st.stop()
 
 # Função de autenticação do Salesforce usando as credenciais do secrets
 def authenticate_salesforce():
@@ -248,8 +279,8 @@ with st.form(key="registro_form"):
         df, material, material_weight, cumulative_cost = consultar_salesforce(st.session_state.production_order, st.session_state.sf)
         if "all_data" in st.session_state and st.session_state.all_data:
             st.write("Salesforceで発見されたすべての記録:")
-            simplified_all_df = simplify_dataframe(pd.DataFrame(st.session_state.all_data))
-            st.dataframe(simplified_all_df)
+            simplified_df = simplify_dataframe(pd.DataFrame(st.session_state.all_data))
+            st.dataframe(simplified_df)
         if not df.empty:
             st.session_state.data = df.to_dict(orient="records")
             st.session_state.material = material
@@ -350,3 +381,4 @@ if not st.session_state.production_order:
     st.warning("QRコードをスキャンするか、生産オーダー番号を入力して開始してください。")
 
 st.markdown("**指示:** QRコードを生産オーダー番号でスキャンするか、6桁の生産オーダー番号を入力してください (例: 000000)。'Done' ステータスの最新の記録に対して '所有者' を入力し、必要に応じて '数量' と '工程順序' を調整してください。'所有者' を入力した後、'保存' をクリックしてください。")
+
