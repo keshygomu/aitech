@@ -9,28 +9,34 @@ from simple_salesforce import Salesforce
 from datetime import datetime
 import re
 import time
+import toml
 
-# Inicializar o Firebase
+# Função para carregar credenciais
+def carregar_credenciais():
+    if 'SECRETS_TEST' in os.environ and os.environ['SECRETS_TEST'] == 'true':
+        # Modo de teste: carrega do secrets.toml local
+        if os.path.exists('.streamlit/secrets.toml'):
+            secrets = toml.load('.streamlit/secrets.toml')
+        else:
+            raise FileNotFoundError("secrets.toml não encontrado no modo de teste.")
+    else:
+        # Modo padrão: usa st.secrets (funciona localmente e no Streamlit Cloud)
+        secrets = st.secrets
+    return secrets
+
+# Carregar as credenciais
+secrets = carregar_credenciais()
+
+# Inicializar o Firebase usando as credenciais do secrets
 if not firebase_admin._apps:
-    cred = credentials.Certificate("chave_privada.json")
+    firebase_secrets = secrets["firebase"]
+    cred = credentials.Certificate(firebase_secrets)
     firebase_admin.initialize_app(cred, {
         "databaseURL": "https://uminventory-4a2a8-default-rtdb.asia-southeast1.firebasedatabase.app/"
     })
 
-# Função para carregar credenciais
-def carregar_credenciais():
-    if os.path.exists('secrets.toml'):
-        import toml
-        secrets = toml.load('secrets.toml')
-    else:
-        secrets = st.secrets
-    return secrets
-
-secrets = carregar_credenciais()
-
-# Função de autenticação do Salesforce
+# Função de autenticação do Salesforce usando as credenciais do secrets
 def authenticate_salesforce():
-    secrets = carregar_credenciais()
     auth_url = f"{secrets['DOMAIN']}/services/oauth2/token"
     auth_data = {
         'grant_type': 'password',
@@ -348,5 +354,4 @@ if not st.session_state.production_order:
     st.warning("QRコードをスキャンするか、生産オーダー番号を入力して開始してください。")
 
 st.markdown("**指示:** QRコードを生産オーダー番号でスキャンするか、6桁の生産オーダー番号を入力してください (例: 000000)。'Done' ステータスの最新の記録に対して '所有者' を入力し、必要に応じて '数量' と '工程順序' を調整してください。'所有者' を入力した後、'保存' をクリックしてください。")
-
 
