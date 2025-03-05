@@ -43,10 +43,10 @@ if not firebase_admin._apps:
                 st.error(f"Chaves obrigatórias ausentes em firebase_secrets: {missing_keys}")
                 st.stop()
 
-            # Garantir que private_key tenha quebras de linha preservadas
-            if isinstance(firebase_secrets["private_key"], str):
+            # Garantir que private_key tenha quebras de linha reais, apenas se necessário
+            if isinstance(firebase_secrets["private_key"], str) and "\\n" in firebase_secrets["private_key"]:
                 firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
-            else:
+            elif not isinstance(firebase_secrets["private_key"], str):
                 st.error("A chave 'private_key' não é uma string válida!")
                 st.stop()
 
