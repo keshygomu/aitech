@@ -9,18 +9,13 @@ from simple_salesforce import Salesforce
 from datetime import datetime
 import re
 import time
-import toml
 
 # Função para carregar credenciais
 def carregar_credenciais():
-    if 'SECRETS_TEST' in os.environ and os.environ['SECRETS_TEST'] == 'true':
-        # Modo de teste: carrega do secrets.toml local
-        if os.path.exists('.streamlit/secrets.toml'):
-            secrets = toml.load('.streamlit/secrets.toml')
-        else:
-            raise FileNotFoundError("secrets.toml não encontrado no modo de teste.")
+    if os.path.exists('.streamlit/secrets.toml'):
+        import toml
+        secrets = toml.load('.streamlit/secrets.toml')
     else:
-        # Modo padrão: usa st.secrets (funciona localmente e no Streamlit Cloud)
         secrets = st.secrets
     return secrets
 
@@ -29,7 +24,8 @@ secrets = carregar_credenciais()
 
 # Inicializar o Firebase usando as credenciais do secrets
 if not firebase_admin._apps:
-    firebase_secrets = secrets["firebase"]
+    # Converter explicitamente o objeto secrets["firebase"] para um dicionário Python
+    firebase_secrets = dict(secrets["firebase"])
     cred = credentials.Certificate(firebase_secrets)
     firebase_admin.initialize_app(cred, {
         "databaseURL": "https://uminventory-4a2a8-default-rtdb.asia-southeast1.firebasedatabase.app/"
