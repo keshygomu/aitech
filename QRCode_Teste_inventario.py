@@ -22,44 +22,34 @@ def carregar_credenciais():
 # Carregar as credenciais
 secrets = carregar_credenciais()
 
-# Depuração: exibir o conteúdo completo de secrets
-st.write("Conteúdo completo de secrets:", dict(secrets))
-
 # Inicializar o Firebase usando as credenciais do secrets
 if not firebase_admin._apps:
-    try:
-        if "firebase" in secrets:
-            firebase_secrets = dict(secrets["firebase"])
-            st.write("Firebase secrets antes da validação:", firebase_secrets)
-
-            # Verificar se todas as chaves obrigatórias estão presentes
-            required_keys = [
-                "type", "project_id", "private_key_id", "private_key",
-                "client_email", "client_id", "auth_uri", "token_uri",
-                "auth_provider_x509_cert_url", "client_x509_cert_url"
-            ]
-            missing_keys = [key for key in required_keys if key not in firebase_secrets or not firebase_secrets[key]]
-            if missing_keys:
-                st.error(f"Chaves obrigatórias ausentes em firebase_secrets: {missing_keys}")
-                st.stop()
-
-            # Garantir que private_key tenha quebras de linha reais, apenas se necessário
-            if isinstance(firebase_secrets["private_key"], str) and "\\n" in firebase_secrets["private_key"]:
-                firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
-            elif not isinstance(firebase_secrets["private_key"], str):
-                st.error("A chave 'private_key' não é uma string válida!")
-                st.stop()
-
-            st.write("Firebase secrets após validação:", firebase_secrets)
-            cred = credentials.Certificate(firebase_secrets)
-            firebase_admin.initialize_app(cred, {
-                "databaseURL": "https://uminventory-4a2a8-default-rtdb.asia-southeast1.firebasedatabase.app/"
-            })
-        else:
-            st.error("A chave 'firebase' não foi encontrada em secrets!")
+    if "firebase" in secrets:
+        firebase_secrets = dict(secrets["firebase"])
+        # Verificar se todas as chaves obrigatórias estão presentes
+        required_keys = [
+            "type", "project_id", "private_key_id", "private_key",
+            "client_email", "client_id", "auth_uri", "token_uri",
+            "auth_provider_x509_cert_url", "client_x509_cert_url"
+        ]
+        missing_keys = [key for key in required_keys if key not in firebase_secrets or not firebase_secrets[key]]
+        if missing_keys:
+            st.error(f"Chaves obrigatórias ausentes em firebase_secrets: {missing_keys}")
             st.stop()
-    except Exception as e:
-        st.error(f"Erro ao inicializar o Firebase: {e}")
+
+        # Garantir que private_key tenha quebras de linha reais, apenas se necessário
+        if isinstance(firebase_secrets["private_key"], str) and "\\n" in firebase_secrets["private_key"]:
+            firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
+        elif not isinstance(firebase_secrets["private_key"], str):
+            st.error("A chave 'private_key' não é uma string válida!")
+            st.stop()
+
+        cred = credentials.Certificate(firebase_secrets)
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": "https://uminventory-4a2a8-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        })
+    else:
+        st.error("A chave 'firebase' não foi encontrada em secrets!")
         st.stop()
 
 # Função de autenticação do Salesforce usando as credenciais do secrets
@@ -212,7 +202,7 @@ def verify_last_record(record_id):
     return ref.child(record_id).get()
 
 # Interface Streamlit
-st.image("aitech_logo_B.png", use_container_width=True)
+st.image("aitech_logo_b.png", use_container_width=True)
 
 # Autenticar no Salesforce
 if "sf" not in st.session_state:
