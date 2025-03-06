@@ -212,7 +212,7 @@ def verify_last_record(record_id):
     return ref.child(record_id).get()
 
 # Interface Streamlit
-st.image("aitech_logo_b.png", use_container_width=True)
+st.image("aitech_logo_B.png", use_container_width=True)
 
 # Autenticar no Salesforce
 if "sf" not in st.session_state:
