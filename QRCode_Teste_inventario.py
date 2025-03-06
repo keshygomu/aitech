@@ -243,16 +243,15 @@ if manual_input and len(manual_input) == 6 and manual_input.isdigit():
     st.session_state.manual_input_value = manual_input
     st.session_state.show_camera = False
 
-# Exibir câmera e botão de reexibição
-if st.session_state.show_camera:
+# Exibir câmera apenas se production_order for None e show_camera for True
+if not st.session_state.production_order and st.session_state.show_camera:
     st.write("QRコードをスキャンして開始してください:")
-    # Usar uma chave fixa para evitar recriação do componente
     production_order = qrcode_scanner(key="qrcode_scanner_fixed")
     if production_order:
         st.session_state.production_order = production_order
         st.session_state.manual_input_value = ""
         st.session_state.show_camera = False
-        st.rerun()  # Forçar re-execução para processar o production_order
+        st.rerun()
 
 # Botão de reexibição sempre visível
 if st.button("カメラを再表示"):
