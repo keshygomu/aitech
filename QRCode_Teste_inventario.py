@@ -26,7 +26,6 @@ secrets = carregar_credenciais()
 if not firebase_admin._apps:
     if "firebase" in secrets:
         firebase_secrets = dict(secrets["firebase"])
-        # Verificar se todas as chaves obrigatórias estão presentes
         required_keys = [
             "type", "project_id", "private_key_id", "private_key",
             "client_email", "client_id", "auth_uri", "token_uri",
@@ -37,7 +36,6 @@ if not firebase_admin._apps:
             st.error(f"Chaves obrigatórias ausentes em firebase_secrets: {missing_keys}")
             st.stop()
 
-        # Garantir que private_key tenha quebras de linha reais, apenas se necessário
         if isinstance(firebase_secrets["private_key"], str) and "\\n" in firebase_secrets["private_key"]:
             firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
         elif not isinstance(firebase_secrets["private_key"], str):
@@ -248,11 +246,13 @@ if manual_input and len(manual_input) == 6 and manual_input.isdigit():
 # Exibir câmera e botão de reexibição
 if st.session_state.show_camera:
     st.write("QRコードをスキャンして開始してください:")
-    production_order = qrcode_scanner(key="qrcode_scanner_" + str(datetime.now().timestamp()))
+    # Usar uma chave fixa para evitar recriação do componente
+    production_order = qrcode_scanner(key="qrcode_scanner_fixed")
     if production_order:
         st.session_state.production_order = production_order
         st.session_state.manual_input_value = ""
         st.session_state.show_camera = False
+        st.rerun()  # Forçar re-execução para processar o production_order
 
 # Botão de reexibição sempre visível
 if st.button("カメラを再表示"):
@@ -331,7 +331,6 @@ with st.form(key="registro_form"):
             exists, existing_key = check_existing_record_with_date(st.session_state.production_order, date_only, data_to_save)
             if exists:
                 st.warning("この記録は既に存在します。")
-                # Limpar todos os campos mesmo em caso de registro existente
                 st.session_state.production_order = None
                 st.session_state.manual_input_value = ""
                 st.session_state.data = None
@@ -356,7 +355,6 @@ with st.form(key="registro_form"):
                 else:
                     st.error(f"エラー: ID {record_id if not update_exists else update_key} の記録の確認に失敗しました。")
                 
-                # Limpar todos os campos após gravação ou atualização
                 st.session_state.production_order = None
                 st.session_state.manual_input_value = ""
                 st.session_state.data = None
