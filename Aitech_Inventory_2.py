@@ -1,74 +1,66 @@
 import streamlit as st
-import pandas as pd
-from simple_salesforce import Salesforce
-import os
-import pytz
-from datetime import datetime
-import requests
-from google.oauth2.service_account import Credentials
-import gspread
-import toml
 from streamlit_qrcode_scanner import qrcode_scanner
+from simple_salesforce import Salesforce
+import requests
+import os
+import pandas as pd
+import firebase_admin
+from firebase_admin import credentials, db
+from datetime import datetime
 
+material = ''
+peso = 0
+pagamento = ''
+inventory = str(datetime.now().strftime("%Y%m%d"))
 
-# Função para carregar credenciais
+# Exibe a imagem como header
+st.image("aitech_logo_B.png", use_container_width=True)
+
+# Função para carregar credenciais do Salesforce
 def carregar_credenciais():
-    if os.path.exists('secrets.toml'):
-        secrets = toml.load('secrets.toml')
-    else:
-        secrets = st.secrets
-    return secrets
+    try:
+        if os.path.exists('.streamlit/secrets.toml'):
+            import toml
+            secrets = toml.load('.streamlit/secrets.toml')
+        else:
+            secrets = st.secrets
+        return secrets
+    except Exception as e:
+        st.error(f"認証情報の読み込みエラー: {e}")  # "Erro ao carregar credenciais"
+        st.stop()
 
-
-# Carrega as credenciais
+# Carregar as credenciais
 secrets = carregar_credenciais()
 
-# Configuração do Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials_dict = {
-    "type": secrets["google_service_account"]["type"],
-    "project_id": secrets["google_service_account"]["project_id"],
-    "private_key_id": secrets["google_service_account"]["private_key_id"],
-    "private_key": secrets["google_service_account"]["private_key"],
-    "client_email": secrets["google_service_account"]["client_email"],
-    "client_id": secrets["google_service_account"]["client_id"],
-    "auth_uri": secrets["google_service_account"]["auth_uri"],
-    "token_uri": secrets["google_service_account"]["token_uri"],
-    "auth_provider_x509_cert_url": secrets["google_service_account"]["auth_provider_x509_cert_url"],
-    "client_x509_cert_url": secrets["google_service_account"]["client_x509_cert_url"],
-    "universe_domain": secrets["google_service_account"]["universe_domain"],
-}
-creds = Credentials.from_service_account_info(credentials_dict, scopes=scope)
-client = gspread.authorize(creds)
+# Inicializar o Firebase usando as credenciais do secrets
+if not firebase_admin._apps:
+    if "firebase" in secrets:
+        firebase_secrets = dict(secrets["firebase"])
+        required_keys = [
+            "type", "project_id", "private_key_id", "private_key",
+            "client_email", "client_id", "auth_uri", "token_uri",
+            "auth_provider_x509_cert_url", "client_x509_cert_url"
+        ]
+        missing_keys = [key for key in required_keys if key not in firebase_secrets or not firebase_secrets[key]]
+        if missing_keys:
+            st.error(f"firebase_secretsに必須キーが欠けています: {missing_keys}")  # "Chaves obrigatórias ausentes em firebase_secrets"
+            st.stop()
 
-# Fuso horário do Japão (JST)
-jst = pytz.timezone('Asia/Tokyo')
+        if isinstance(firebase_secrets["private_key"], str) and "\\n" in firebase_secrets["private_key"]:
+            firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
+        elif not isinstance(firebase_secrets["private_key"], str):
+            st.error("「private_key」は有効な文字列ではありません！")  # "A chave 'private_key' não é uma string válida!"
+            st.stop()
 
-# Inicializa o estado da sessão
-if "botao_confirmar_ativo" not in st.session_state:
-    st.session_state.botao_confirmar_ativo = True
-if "google_sheet_data" not in st.session_state:
-    st.session_state.google_sheet_data = {
-        "df_todos": pd.DataFrame(),
-        "valores_coluna": pd.Series(),
-        "df_filtrado": pd.DataFrame(),
-        "total_prodorder": 0,
-        "total_prodorder_check": 0
-    }
-if "last_codigo" not in st.session_state:
-    st.session_state.last_codigo = ""
-if "codigo_input" not in st.session_state:
-    st.session_state.codigo_input = ""
-if "quantidade_input" not in st.session_state:
-    st.session_state.quantidade_input = ""
-if "codigo_responsavel_input" not in st.session_state:
-    st.session_state.codigo_responsavel_input = ""
+        cred = credentials.Certificate(firebase_secrets)
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": "https://uminventory-4a2a8-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        })
+    else:
+        st.error("secretsに「firebase」キーが見つかりません！")  # "A chave 'firebase' não foi encontrada em secrets!"
+        st.stop()
 
-st.image('aitech_logo_B.png', use_container_width=True)
-
-
-# Função para autenticar no Salesforce (Cache por 10 minutos)
-@st.cache_data(ttl=600)
+# Função para autenticar no Salesforce usando OAuth2
 def authenticate_salesforce():
     auth_url = f"{secrets['DOMAIN']}/services/oauth2/token"
     auth_data = {
@@ -78,290 +70,297 @@ def authenticate_salesforce():
         'username': secrets['USERNAME'],
         'password': secrets['PASSWORD']
     }
-    response = requests.post(auth_url, data=auth_data)
-    response.raise_for_status()
-    return Salesforce(instance_url=response.json()['instance_url'], session_id=response.json()['access_token'])
-
-
-# Mapeamento dos status
-status_mapping = {
-    "BeforeOrderConfirmation": "確定前",
-    "OrderConfirmed": "確定",
-    "InProduction": "製造中",
-    "Done": "作業完了",
-    "Cancelled": "キャンセル"
-}
-
-
-# Função para carregar dados existentes do Google Sheets apenas sob demanda
-@st.cache_data(ttl=3600)  # Cache por 1 hora
-def carregar_dados_existentes_google_sheet():
     try:
-        spreadsheet = client.open("棚卸_記録")
-        nome_aba = datetime.now(jst).strftime("%Y%m%d")
-        sheet_names = [sheet.title for sheet in spreadsheet.worksheets()]
-        if nome_aba in sheet_names:
-            worksheet = spreadsheet.worksheet(nome_aba)
-            df = pd.DataFrame(worksheet.get_all_records())
-            return df.reset_index(drop=True) if not df.empty else pd.DataFrame()
-        return pd.DataFrame()
+        response = requests.post(auth_url, data=auth_data, timeout=10)
+        response.raise_for_status()
+        token_data = response.json()
+        access_token = token_data['access_token']
+        instance_url = token_data['instance_url']
+        return Salesforce(instance_url=instance_url, session_id=access_token)
+    except requests.exceptions.RequestException as e:
+        st.error(f"認証エラー: {e}")  # "Erro de autenticação"
+        st.stop()
     except Exception as e:
-        st.error(f"Erro ao carregar dados do Google Sheets: {str(e)}")
-        return pd.DataFrame()
+        st.error(f"認証中に予期しないエラーが発生しました: {e}")  # "Erro inesperado durante autenticação"
+        st.stop()
 
+# Inicializa estados de sessão necessários
+if 'owner' not in st.session_state:
+    st.session_state['owner'] = ''
+if 'reset_form' not in st.session_state:
+    st.session_state['reset_form'] = False
+if 'registrado' not in st.session_state:
+    st.session_state['registrado'] = False
+if 'update' not in st.session_state:
+    st.session_state['update'] = False
+if 'mostrar_sucesso' not in st.session_state:
+    st.session_state['mostrar_sucesso'] = False
+if 'dados_registro' not in st.session_state:
+    st.session_state['dados_registro'] = {}
 
-# Verifica duplicatas usando apenas session_state
-def verificar_codigo_existente(codigo_formatado):
-    dados_existentes = st.session_state.google_sheet_data["df_todos"]
-    return codigo_formatado in dados_existentes["移行票№"].str.slice(0,
-                                                                     9).values if not dados_existentes.empty else False
+# Função para verificar se o registro já existe no Firebase
+def check_existing_record_with_date(production_order, date_str, data_to_save):
+    ref = db.reference(inventory)
+    records = ref.order_by_child("production_order").equal_to(production_order).get()
+    if records:
+        for key, value in records.items():
+            record_date = value.get("datetime", "").split()[0]
+            if record_date == date_str:
+                if (value.get("quantity") == data_to_save["quantity"] and
+                    value.get("owner") == data_to_save["owner"] and
+                    value.get("product_code") == data_to_save["product_code"] and
+                    value.get("process_name") == data_to_save["process_name"] and
+                    value.get("process_order") == data_to_save["process_order"] and
+                    value.get("work_place") == data_to_save["work_place"] and
+                    value.get("cumulative_cost") == data_to_save["cumulative_cost"] and
+                    value.get("material") == data_to_save["material"] and
+                    value.get("material_provision_type") == data_to_save["material_provision_type"] and
+                    value.get("material_weight") == data_to_save["material_weight"]):
+                    return True, key
+    return False, None
 
+# Função para verificar se o registro já existe para update
+def check_for_update(production_order, date_str):
+    ref = db.reference(inventory)
+    records = ref.order_by_child("production_order").equal_to(production_order).get()
+    if records:
+        for key, value in records.items():
+            record_date = value.get("datetime", "").split()[0]
+            if record_date == date_str:
+                return True, key
+    return False, None
 
-# Leitura do QR code
-qr_code = qrcode_scanner(key="qr_scanner")
-if qr_code is None:
-    st.info("カメラが動作しない場合は、Safariを使用するか、ページを再読み込みしてみてください。")
+# Função para gravar no Firebase
+def gravar_firebase(data):
+    ref = db.reference(inventory)
+    new_record = ref.push(data)
+    return new_record.key
 
-# Campo de entrada manual com valor inicial do QR code
-if qr_code:
-    if qr_code.startswith("PO-") and qr_code[3:].isdigit() and len(qr_code) == 9:
-        st.session_state.codigo_input = qr_code[3:]
-        if st.session_state.botao_confirmar_ativo:
-            st.session_state.quantidade_input = "0"
+# Função para atualizar registro no Firebase
+def update_firebase(record_id, data):
+    ref = db.reference(f"{inventory}/{record_id}")
+    ref.update(data)
+    return record_id
+
+# Função para verificar o último registro no Firebase
+def verify_last_record(record_id):
+    ref = db.reference(inventory)
+    return ref.child(record_id).get()
+
+# Função para resetar o formulário
+def reset_formulario():
+    st.session_state['reset_form'] = True
+    st.session_state['registrado'] = False
+    st.session_state['update'] = False
+    st.session_state['mostrar_sucesso'] = False
+    st.rerun()
+
+# Função para processar o registro bem-sucedido
+def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, process_name, product_code, production_order):
+    datetime_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    date_only = datetime.now().strftime("%Y-%m-%d")
+
+    data_to_save = {
+        "datetime": datetime_str,
+        "production_order": production_order,
+        "quantity": quantidade,
+        "owner": st.session_state['owner'],
+        "product_code": product_code,
+        "process_name": process_name,
+        "process_order": process_order,
+        "work_place": work_place,
+        "cumulative_cost": cumulative_cost,
+        "material": material,
+        "material_provision_type": pagamento,
+        "material_weight": peso
+    }
+
+    exists, existing_key = check_existing_record_with_date(production_order, date_only, data_to_save)
+
+    update_exists, update_key = check_for_update(production_order, date_only)
+    if update_exists:
+        st.session_state['update'] = True
+        update_firebase(update_key, data_to_save)
     else:
-        st.warning("QRコードが無効です。PO-000000の形式を使用してください。")
+        record_id = gravar_firebase(data_to_save)
 
-codigo_input = st.text_input(
-    "移行票の数値部分のみを入力してください (またはQRコードをスキャンしてください):",
-    value=st.session_state.codigo_input,
-    key="codigo_input"
-)
+    st.session_state['registrado'] = True
+    st.session_state['mostrar_sucesso'] = True
+    st.session_state['dados_registro'] = {
+        'production_order': production_order,
+        'product_code': product_code,
+        'work_place': work_place,
+        'process_name': process_name,
+        'quantidade': quantidade,
+        'process_order': process_order
+    }
+    st.rerun()
 
-# Formata o código
-if qr_code and qr_code.startswith("PO-") and qr_code[3:].isdigit() and len(qr_code) == 9:
-    codigo_formatado = qr_code
-elif codigo_input.isdigit() and 0 <= int(codigo_input) <= 999999:
-    codigo_formatado = f"PO-{int(codigo_input):06d}"
+# Campo para digitar o "Owner" no início
+if not st.session_state['owner']:
+    st.session_state['owner'] = st.text_input("担当者の名前またはコードを入力してください:", key="owner_input")  # "Digite o nome ou código do responsável:"
+    if not st.session_state['owner']:
+        st.warning("続行する前に担当者を入力してください。")  # "Por favor, insira o responsável antes de continuar."
+        st.stop()
+
+# Se já registrou com sucesso, mostrar mensagem e botão para novo registro
+if st.session_state['mostrar_sucesso']:
+    if st.session_state['update']:
+        st.success("登録が正常に更新されました！")  # "Registro foi atualizado com sucesso!"
+    else:
+        st.success("登録が正常に完了しました！")  # "Registro realizado com sucesso!"
+
+    # Dividir em duas colunas
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write(f"担当者: {st.session_state['owner']}")  # "Responsável"
+        st.write(f"生産オーダー: {st.session_state['dados_registro'].get('production_order', '')}")  # "Production Order"
+        st.write(f"プロセス名: {st.session_state['dados_registro'].get('process_name', '')}")  # "Process Name"
+
+    with col2:
+        st.write(f"作業場所: {st.session_state['dados_registro'].get('work_place', '')}")  # "Work Place"
+        st.write(f"報告数量: {st.session_state['dados_registro'].get('quantidade', 0)}")  # "Quantidade Informada"
+        st.write(f"プロセスオーダー番号: {st.session_state['dados_registro'].get('process_order', '')}")  # "ProcessOrderNo"
+
+    if st.button("新規登録", key="btn_novo_registro"):  # "Novo Registro"
+        reset_formulario()
+    st.stop()
+
+# Leitura do QR-Code ou input manual
+col1, col2 = st.columns(2)
+
+# Sempre renderizar o QR code scanner
+with col1:
+    qr_code = qrcode_scanner(key="qr_code_scanner")
+    if qr_code:
+        pass
+
+# Input manual com reset controlado
+with col2:
+    if st.session_state['reset_form']:
+        input_manual = st.text_input(
+            "生産オーダーの番号を入力してください (PO-なし):",  # "Digite o número da Ordem de Produção (sem PO-)"
+            value="",
+            key="input_manual_reset"
+        )
+    else:
+        input_manual = st.text_input(
+            "生産オーダーの番号を入力してください (PO-なし):",  # "Digite o número da Ordem de Produção (sem PO-)"
+            key="input_manual_normal"
+        )
+
+# Processamento do input
+production_order = ""
+if qr_code:
+    production_order = qr_code.strip()
+    st.session_state['reset_form'] = False
+elif input_manual:
+    production_order = f"PO-{str(input_manual.strip()).zfill(6)}"
+
+# Exibir o production_order para depuração
+if production_order:
+    st.write(f"検出された生産オーダー: {production_order}")  # "Ordem de Produção detectada"
 else:
-    codigo_formatado = None
-    if codigo_input and not qr_code:
-        st.warning("有効な数値を0から999999の間で入力してください。")
+    st.info("QRコードの読み取りまたは手動入力を待っています。")  # "Aguardando leitura do QR-Code ou entrada manual."
 
-# Consulta ao Salesforce apenas se o código mudou
-if codigo_formatado and codigo_formatado != st.session_state.last_codigo:
-    st.session_state.last_codigo = codigo_formatado
-    if verificar_codigo_existente(codigo_formatado):
-        st.warning("登録済")
+# Se temos um production_order, autenticar no Salesforce e buscar dados
+registros = []
+if production_order and not st.session_state['registrado']:
     try:
         sf = authenticate_salesforce()
-        query = f"""
-        SELECT Name, snps_um__ProcessName__c, snps_um__ActualQt__c, snps_um__Item__r.Name, 
-               snps_um__Item__r.AITC_PrintItemName__c, snps_um__ProcessOrderNo__c, 
-               snps_um__ProdOrder__r.Name, snps_um__Status__c, snps_um__WorkPlace__r.Name,
-               snps_um__StockPlace__r.Name, snps_um__Item__c, snps_um__Process__r.Process_cost__c, 
-               snps_um__Item__r.AITC_ItemRank__c, snps_um__Item__r.snps_um__Weight__c, 
-               AITC_OrderQt__c, snps_um__EndDateTime__c 
-        FROM snps_um__WorkOrder__c 
-        WHERE snps_um__ProdOrder__r.Name = '{codigo_formatado}'
-        """
-        result = sf.query(query)
 
-        material, pagamento, peso = "-", "-", "-"
-        if result['totalSize'] > 0:
-            father_id = result['records'][0]['snps_um__Item__c']
-            query = f"""
-                    SELECT snps_um__ChildItem__r.Name, snps_um__AddQt__c, snps_um__ChildItem__r.AITC_ProcessPattern__c 
-                    FROM snps_um__Composition2__c
-                    WHERE snps_um__ParentItem2__c = '{father_id}'
-                    """
-            procura_shikyu1 = sf.query(query)
-            if procura_shikyu1['totalSize'] > 0:
-                peso = procura_shikyu1['records'][0]['snps_um__AddQt__c']
-                kosei = procura_shikyu1['records'][0]['snps_um__ChildItem__r']['AITC_ProcessPattern__c']
+        def buscar_dados_salesforce(production_order):
+            try:
+                query = f"""
+                    SELECT Id, Name, snps_um__ProcessName__c, snps_um__ActualQt__c, snps_um__Item__r.Id, 
+                        snps_um__Item__r.Name, snps_um__ProcessOrderNo__c, snps_um__ProdOrder__r.Id, 
+                        snps_um__ProdOrder__r.Name, snps_um__Status__c, snps_um__WorkPlace__r.Id, 
+                        snps_um__WorkPlace__r.Name, snps_um__StockPlace__r.Name, snps_um__Item__c, 
+                        snps_um__Process__r.AITC_Acumulated_Price__c, AITC_OrderQt__c, snps_um__EndDateTime__c 
+                    FROM snps_um__WorkOrder__c 
+                    WHERE snps_um__ProdOrder__r.Name = '{production_order}'
+                    ORDER BY snps_um__EndDateTime__c DESC
+                """
+                result = sf.query(query)
+                return result['records']
+            except Exception as e:
+                st.error(f"Salesforceからのデータ取得エラー: {e}")  # "Erro ao buscar dados do Salesforce"
+                return []
+
+        def buscar_materiais(materiais):
+            try:
+                query = f"""
+                        SELECT snps_um__ChildItem__r.Name, snps_um__AddQt__c, 
+                               snps_um__ChildItem__r.AITC_ProcessPattern__c 
+                        FROM snps_um__Composition2__c
+                        WHERE snps_um__ParentItem2__c = '{materiais}'
+                        """
+                result = sf.query(query)
+                return result['records']
+            except Exception as e:
+                st.error(f"この製品では材料が使用されていません: {e}")  # "Material não é usado nesse produto"
+                return []
+
+        registros = buscar_dados_salesforce(production_order)
+        if not registros:
+            st.warning("この生産オーダーに対応する記録が見つかりませんでした。")  # "Nenhum registro encontrado para essa Ordem de Produção."
+        else:
+            try:
+                materiais = registros[0]['snps_um__Item__c']
+                materiais = buscar_materiais(materiais)
+            except Exception as e:
+                print(e)
+
+            if materiais:
+                material = materiais[0]['snps_um__ChildItem__r']['Name']
+                peso = materiais[0]['snps_um__AddQt__c']
+                kosei = materiais[0]['snps_um__ChildItem__r']['AITC_ProcessPattern__c']
                 query = f"""
                         SELECT snps_um__PaidProvideDiv__c
                         FROM snps_um__Process__c
                         WHERE snps_um__ProcessPattern__c = '{kosei}'
                         """
-                procura_shikyu2 = sf.query(query)
-                if procura_shikyu2['totalSize'] > 0:
-                    material = procura_shikyu1['records'][0]['snps_um__ChildItem__r']['Name']
-                    pagamento = "有償支給" if procura_shikyu2['records'][0][
-                                                  'snps_um__PaidProvideDiv__c'] == "Paid" else "無償支給"
+                pagamento = sf.query(query)
+                if pagamento['totalSize'] > 0:
+                    pagamento = "有償支給" if pagamento['records'][0]['snps_um__PaidProvideDiv__c'] == "Paid" else "無償支給"
 
-        lista_kotei = []
-        if result['totalSize'] > 0:
-            first_record = result['records'][0]
-            prod_order_no = first_record['snps_um__ProdOrder__r']['Name']
-            item_name = first_record['snps_um__Item__r']['Name']
-            rank = first_record['snps_um__Item__r']['AITC_ItemRank__c']
-            original_order = first_record['AITC_OrderQt__c']
-
-            table_data = []
-            price = 0
-            headers = ["作業オーダー", "工程", "順序", "数量", "ステータス", "作業場所", "工程単価", "累積単価", "最後完了日"]
-            for record in result['records']:
-                process_name = record['snps_um__ProcessName__c']
-                process_order_no = int(record['snps_um__ProcessOrderNo__c'])
-                status = status_mapping.get(record['snps_um__Status__c'], record['snps_um__Status__c'])
-                actual_qty = int(record['snps_um__ActualQt__c'])
-                work_place_name = record['snps_um__WorkPlace__r']['Name']
-                cost_price = record['snps_um__Process__r']['Process_cost__c'] or 0
-                price += cost_price
-                done_date = record['snps_um__EndDateTime__c']
-                done_date = datetime.strptime(done_date, "%Y-%m-%dT%H:%M:%S.%f%z").strftime(
-                    "%y/%m/%d") if done_date else "0"
-
-                lista_kotei.append(f"{process_order_no}:{process_name}:{work_place_name}")
-                table_data.append([record['Name'], process_name, process_order_no, actual_qty, status, work_place_name,
-                                   round(cost_price, 2), round(price, 2), done_date])
-
-            df = pd.DataFrame(table_data, columns=headers)
-            last_done_record = df[df['ステータス'] == "作業完了"].iloc[-1] if not df[
-                df['ステータス'] == "作業完了"].empty else None
-
-            st.write(
-                f"**移行票№**: {prod_order_no}　ー　{original_order}　ー　**最後完了日**: {last_done_record['最後完了日'] if last_done_record is not None else '0'}")
-            st.write(
-                f"**品目**: {item_name}　**ランク**: {rank}　**完了工程**: {last_done_record['工程'] if last_done_record is not None else '(0)'}")
-
-
-            def highlight_zero_quantity(row):
-                return ['background-color: green' if row['数量'] != 0 else '' for _ in row]
-
-
-            styled_df = df.iloc[:, :-2].style.apply(highlight_zero_quantity, axis=1)
-            with st.popover("製造オーダー明細"):
-                st.dataframe(styled_df.data)
-
-            selecionado = st.selectbox('工程選択:', lista_kotei,
-                                       index=len(lista_kotei) - 1 if last_done_record is None else
-                                       df.index[df['順序'] == last_done_record['順序']].tolist()[0])
-            if last_done_record is not None and st.session_state.botao_confirmar_ativo:
-                st.session_state.quantidade_input = str(last_done_record['数量'])
-        else:
-            st.warning("入力されたコードに対して、レコードが見つかりませんでした。")
-            last_done_record = None
     except Exception as e:
-        st.error(f"Salesforceへの問い合わせでエラーが発生しました: {str(e)}")
-        last_done_record = None
-else:
-    last_done_record = None
+        st.error(f"Salesforceへの認証ができませんでした: {e}")  # "Não foi possível autenticar no Salesforce"
 
-# Campos de entrada
-quantidade = st.text_input("数量:", max_chars=10, value=st.session_state.quantidade_input, key="quantidade_input")
-codigo_responsavel = st.text_input("担当者コード", value=st.session_state.codigo_responsavel_input,
-                                   key="codigo_responsavel_input")
+# Exibição dos registros e formulário
+if registros and not st.session_state['registrado']:
+    registros_done = [r for r in registros if r.get('snps_um__Status__c') == 'Done']
 
-# Botão de confirmação
-botao_confirmar_ativado = st.session_state.botao_confirmar_ativo and codigo_formatado and quantidade and codigo_responsavel
-
-
-# Função para salvar dados no session_state
-def salvar_dados_session_state(codigo_formatado, quantidade, codigo_responsavel, ordem, ordem_nome, lugar,
-                               last_done_record, material, pagamento, peso):
-    dados = st.session_state.google_sheet_data
-    nome_aba = datetime.now(jst).strftime("%Y%m%d")
-    codigo_reformatado = f"{codigo_formatado}-{ordem}"
-    cost_price = float(df.loc[df['順序'] == int(ordem), '累積単価'].values[0]) if 'df' in globals() else 0
-
-    nova_linha = pd.DataFrame([[datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"), codigo_reformatado, int(quantidade),
-                                int(codigo_responsavel), item_name, ordem_nome, int(ordem), lugar, cost_price, material,
-                                pagamento, peso]],
-                              columns=["時間", "移行票№", "数量", "担当者コード", "品目", "工程", "順序", "作業場所",
-                                       "累積単価", "材料", "支払", "重量"])
-
-    if dados["df_todos"].empty:
-        dados["df_todos"] = nova_linha
+    if not registros_done:
+        st.warning("この生産オーダーには生産記録がありません。")  # "Esse production_order não tem registro de produção."
     else:
-        dados["df_todos"] = pd.concat([dados["df_todos"], nova_linha], ignore_index=True)
+        ultimo_done = registros_done[0]
+        quantidade_atual = float(ultimo_done.get('snps_um__ActualQt__c', 0.0))
+        process_order_no = str(ultimo_done.get('snps_um__ProcessOrderNo__c', ''))
+        work_place = str(ultimo_done.get("snps_um__WorkPlace__r", {}).get("Name", ""))
+        cumulative_cost = str(ultimo_done.get("snps_um__Process__r", {}).get("AITC_Acumulated_Price__c", 0.0))
+        process_name = str(ultimo_done.get("snps_um__ProcessName__c", ""))
+        product_code = str(ultimo_done.get("snps_um__Item__r", {}).get("Name", "N/A"))
 
-    dados["valores_coluna"] = dados["df_todos"]["移行票№"]
-    mask = ~dados["df_todos"]["移行票№"].duplicated(keep='last')  # Exemplo de filtro para revalidação
-    dados["df_filtrado"] = dados["df_todos"][mask]
-    dados["total_prodorder"] = len(dados["df_todos"])
-    dados["total_prodorder_check"] = len(dados["df_filtrado"])
-    st.session_state.google_sheet_data = dados
+        with st.form(key="form_registro_inventario"):
+            st.subheader("在庫登録")  # "Registrar Inventário"
 
+            quantidade_contagem = st.number_input(
+                "現在の数量（最後のDone記録に基づく）",  # "Quantidade Atual (baseada no último registro Done)"
+                value=quantidade_atual,
+                step=0.01,
+                key="quantidade_input_form"
+            )
 
-if st.button("データ登録", disabled=not botao_confirmar_ativado, type="primary"):
-    try:
-        ordem, ordem_nome, ordem_local = selecionado.split(":")
-        salvar_dados_session_state(codigo_formatado, quantidade, codigo_responsavel, ordem, ordem_nome, ordem_local,
-                                   last_done_record, material, pagamento, peso)
-        st.success("データが正常に確認されました！")
-        st.write(f"移行票№: {codigo_formatado} / {item_name}")
-        st.write(f"数量: {quantidade}     担当者コード: {codigo_responsavel}")
-        st.session_state.botao_confirmar_ativo = False
-        st.session_state.codigo_input = ""
-        st.session_state.quantidade_input = ""
-    except Exception as e:
-        st.write(f"生産が開始されていないため。移行票№: {codigo_formatado}　は登録されません。")
+            process_order_input = st.text_input(
+                "プロセスオーダー番号（最後のDone記録に基づく）",  # "ProcessOrderNo (baseado no último registro Done)"
+                value=process_order_no,
+                key="process_order_input_form"
+            )
 
-# Exibição dos dados
-col1, col2, col3 = st.columns(3)
-dados = st.session_state.google_sheet_data
-st.warning(f"移行票 {dados['total_prodorder']}件(登録済み)　再確認待ち {dados['total_prodorder_check']}件")
+            submit_button = st.form_submit_button(label="登録")  # "Registrar"
 
-with col2:
-    with st.popover("再確認待ち"):
-        if not dados["df_filtrado"].empty:
-            st.dataframe(dados["df_filtrado"].iloc[:, :9])
-        else:
-            st.warning("空")
-
-with col3:
-    with st.popover("現在棚卸詳細"):
-        if not dados["df_todos"].empty:
-            st.dataframe(dados["df_todos"])
-        else:
-            st.warning("空")
-
-with col1:
-    if st.button("Google Sheet 保存"):
-        spreadsheet = client.open("棚卸_記録")
-        nome_aba = datetime.now(jst).strftime("%Y%m%d")
-        dados = st.session_state.google_sheet_data["df_todos"]
-
-        if not dados.empty:
-            try:
-                worksheet = spreadsheet.worksheet(nome_aba)
-                dados_existentes = pd.DataFrame(worksheet.get_all_records())
-                if not dados_existentes.empty:
-                    novos_dados = dados[~dados["移行票№"].isin(dados_existentes["移行票№"])]
-                else:
-                    novos_dados = dados
-
-                if not novos_dados.empty:
-                    worksheet.append_rows(novos_dados.values.tolist())
-                    st.success("Dados salvos no Google Sheets!")
-                else:
-                    st.warning("Nenhum dado novo para salvar.")
-
-                st.session_state.google_sheet_data = {
-                    "df_todos": pd.DataFrame(),
-                    "valores_coluna": pd.Series(),
-                    "df_filtrado": pd.DataFrame(),
-                    "total_prodorder": 0,
-                    "total_prodorder_check": 0
-                }
-            except gspread.exceptions.WorksheetNotFound:
-                spreadsheet.add_worksheet(title=nome_aba, rows=1000, cols=12)
-                worksheet = spreadsheet.worksheet(nome_aba)
-                worksheet.append_rows([dados.columns.tolist()] + dados.values.tolist())
-                st.success("Nova aba criada e dados salvos!")
-                st.session_state.google_sheet_data = {
-                    "df_todos": pd.DataFrame(),
-                    "valores_coluna": pd.Series(),
-                    "df_filtrado": pd.DataFrame(),
-                    "total_prodorder": 0,
-                    "total_prodorder_check": 0
-                }
-            except Exception as e:
-                st.error(f"Erro ao salvar: {str(e)}")
-        else:
-            st.warning("Nenhum dado para salvar.")
-
-if not st.session_state.botao_confirmar_ativo:
-    st.session_state.botao_confirmar_ativo = True
+        if submit_button:
+            registrar_sucesso(quantidade_contagem, process_order_input, work_place, cumulative_cost, process_name, product_code, production_order)
 
