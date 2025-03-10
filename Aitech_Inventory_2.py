@@ -339,7 +339,7 @@ if production_order and not st.session_state['registrado']:
                 print(e)
 
             with st.form(key="form_registro_inventario"):
-                st.subheader("在庫登録")
+                st.subheader(f"在庫登録 - {product_code}")
 
                 quantidade_contagem = st.number_input(
                     "最後の完了工程の登録数",
