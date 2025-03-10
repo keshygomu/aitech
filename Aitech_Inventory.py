@@ -11,6 +11,7 @@ from datetime import datetime
 material = ''
 peso = 0
 pagamento = ''
+data_to_save = []
 inventory = str(datetime.now().strftime("%Y%m%d"))
 
 # Exibe a imagem como header
@@ -26,7 +27,7 @@ def carregar_credenciais():
             secrets = st.secrets
         return secrets
     except Exception as e:
-        st.error(f"認証情報の読み込みエラー: {e}")  # "Erro ao carregar credenciais"
+        st.error(f"認証情報の読み込みエラー: {e}")
         st.stop()
 
 # Carregar as credenciais
@@ -43,13 +44,13 @@ if not firebase_admin._apps:
         ]
         missing_keys = [key for key in required_keys if key not in firebase_secrets or not firebase_secrets[key]]
         if missing_keys:
-            st.error(f"firebase_secretsに必須キーが欠けています: {missing_keys}")  # "Chaves obrigatórias ausentes em firebase_secrets"
+            st.error(f"firebase_secretsに必須キーが欠けています: {missing_keys}")
             st.stop()
 
         if isinstance(firebase_secrets["private_key"], str) and "\\n" in firebase_secrets["private_key"]:
             firebase_secrets["private_key"] = firebase_secrets["private_key"].replace("\\n", "\n")
         elif not isinstance(firebase_secrets["private_key"], str):
-            st.error("「private_key」は有効な文字列ではありません！")  # "A chave 'private_key' não é uma string válida!"
+            st.error("「private_key」は有効な文字列ではありません！")
             st.stop()
 
         cred = credentials.Certificate(firebase_secrets)
@@ -57,7 +58,7 @@ if not firebase_admin._apps:
             "databaseURL": "https://uminventory-4a2a8-default-rtdb.asia-southeast1.firebasedatabase.app/"
         })
     else:
-        st.error("secretsに「firebase」キーが見つかりません！")  # "A chave 'firebase' não foi encontrada em secrets!"
+        st.error("secretsに「firebase」キーが見つかりません！")
         st.stop()
 
 # Função para autenticar no Salesforce usando OAuth2
@@ -78,10 +79,10 @@ def authenticate_salesforce():
         instance_url = token_data['instance_url']
         return Salesforce(instance_url=instance_url, session_id=access_token)
     except requests.exceptions.RequestException as e:
-        st.error(f"認証エラー: {e}")  # "Erro de autenticação"
+        st.error(f"認証エラー: {e}")
         st.stop()
     except Exception as e:
-        st.error(f"認証中に予期しないエラーが発生しました: {e}")  # "Erro inesperado durante autenticação"
+        st.error(f"認証中に予期しないエラーが発生しました: {e}")
         st.stop()
 
 # Inicializa estados de sessão necessários
@@ -97,6 +98,8 @@ if 'mostrar_sucesso' not in st.session_state:
     st.session_state['mostrar_sucesso'] = False
 if 'dados_registro' not in st.session_state:
     st.session_state['dados_registro'] = {}
+if 'process_order_atual' not in st.session_state:
+    st.session_state['process_order_atual'] = None  # Inicializado como None
 
 # Função para verificar se o registro já existe no Firebase
 def check_existing_record_with_date(production_order, date_str, data_to_save):
@@ -153,10 +156,11 @@ def reset_formulario():
     st.session_state['registrado'] = False
     st.session_state['update'] = False
     st.session_state['mostrar_sucesso'] = False
+    st.session_state['process_order_atual'] = None
     st.rerun()
 
 # Função para processar o registro bem-sucedido
-def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, process_name, product_code, production_order):
+def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, process_name, product_code, production_order, material, peso, pagamento):
     datetime_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     date_only = datetime.now().strftime("%Y-%m-%d")
 
@@ -198,55 +202,50 @@ def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, pr
 
 # Campo para digitar o "Owner" no início
 if not st.session_state['owner']:
-    st.session_state['owner'] = st.text_input("担当者の名前またはコードを入力してください:", key="owner_input")  # "Digite o nome ou código do responsável:"
+    st.session_state['owner'] = st.text_input("担当者コードを入力してください:", key="owner_input")
     if not st.session_state['owner']:
-        st.warning("続行する前に担当者を入力してください。")  # "Por favor, insira o responsável antes de continuar."
         st.stop()
 
 # Se já registrou com sucesso, mostrar mensagem e botão para novo registro
 if st.session_state['mostrar_sucesso']:
     if st.session_state['update']:
-        st.success("登録が正常に更新されました！")  # "Registro foi atualizado com sucesso!"
+        st.success("登録が正常に更新されました！")
     else:
-        st.success("登録が正常に完了しました！")  # "Registro realizado com sucesso!"
+        st.success("登録が正常に完了しました！")
 
-    # Dividir em duas colunas
     col1, col2 = st.columns(2)
 
     with col1:
-        st.write(f"担当者: {st.session_state['owner']}")  # "Responsável"
-        st.write(f"生産オーダー: {st.session_state['dados_registro'].get('production_order', '')}")  # "Production Order"
-        st.write(f"プロセス名: {st.session_state['dados_registro'].get('process_name', '')}")  # "Process Name"
-
+        st.write(f"担当者: {st.session_state['owner']}")
+        st.write(f"移行票: {st.session_state['dados_registro'].get('production_order', '')}")
+        st.write(f"工程名: {st.session_state['dados_registro'].get('process_name', '')}")
     with col2:
-        st.write(f"作業場所: {st.session_state['dados_registro'].get('work_place', '')}")  # "Work Place"
-        st.write(f"報告数量: {st.session_state['dados_registro'].get('quantidade', 0)}")  # "Quantidade Informada"
-        st.write(f"プロセスオーダー番号: {st.session_state['dados_registro'].get('process_order', '')}")  # "ProcessOrderNo"
+        st.write(f"作業場所: {st.session_state['dados_registro'].get('work_place', '')}")
+        st.write(f"報告数量: {st.session_state['dados_registro'].get('quantidade', 0)}")
+        st.write(f"工程順序: {st.session_state['dados_registro'].get('process_order', '')}")
 
-    if st.button("新規登録", key="btn_novo_registro"):  # "Novo Registro"
+    if st.button("新規登録", key="btn_novo_registro"):
         reset_formulario()
     st.stop()
 
 # Leitura do QR-Code ou input manual
 col1, col2 = st.columns(2)
 
-# Sempre renderizar o QR code scanner
 with col1:
     qr_code = qrcode_scanner(key="qr_code_scanner")
     if qr_code:
         pass
 
-# Input manual com reset controlado
 with col2:
     if st.session_state['reset_form']:
         input_manual = st.text_input(
-            "生産オーダーの番号を入力してください (PO-なし):",  # "Digite o número da Ordem de Produção (sem PO-)"
+            "移行票番号を入力してください:",
             value="",
             key="input_manual_reset"
         )
     else:
         input_manual = st.text_input(
-            "生産オーダーの番号を入力してください (PO-なし):",  # "Digite o número da Ordem de Produção (sem PO-)"
+            "移行票番号を入力してください:",
             key="input_manual_normal"
         )
 
@@ -258,109 +257,134 @@ if qr_code:
 elif input_manual:
     production_order = f"PO-{str(input_manual.strip()).zfill(6)}"
 
-# Exibir o production_order para depuração
 if production_order:
-    st.write(f"検出された生産オーダー: {production_order}")  # "Ordem de Produção detectada"
+    st.write(f"検出された移行票: {production_order}")
 else:
-    st.info("QRコードの読み取りまたは手動入力を待っています。")  # "Aguardando leitura do QR-Code ou entrada manual."
+    st.info("QRコードの読み取りまたは手動入力を待っています。")
 
-# Se temos um production_order, autenticar no Salesforce e buscar dados
-registros = []
-if production_order and not st.session_state['registrado']:
+# Função para buscar dados do Salesforce
+def buscar_dados_salesforce(production_order, process_order=None):
     try:
         sf = authenticate_salesforce()
+        query = f"""
+            SELECT Id, Name, snps_um__ProcessName__c, snps_um__ActualQt__c, snps_um__Item__r.Id, 
+                snps_um__Item__r.Name, snps_um__ProcessOrderNo__c, snps_um__ProdOrder__r.Id, 
+                snps_um__ProdOrder__r.Name, snps_um__Status__c, snps_um__WorkPlace__r.Id, 
+                snps_um__WorkPlace__r.Name, snps_um__StockPlace__r.Name, snps_um__Item__c, 
+                snps_um__Process__r.AITC_Acumulated_Price__c, AITC_OrderQt__c, snps_um__EndDateTime__c 
+            FROM snps_um__WorkOrder__c 
+            WHERE snps_um__ProdOrder__r.Name = '{production_order}'
+        """
+        if process_order is not None:
+            query += f" AND snps_um__ProcessOrderNo__c = {process_order}"
+        query += " ORDER BY snps_um__EndDateTime__c DESC"
+        result = sf.query(query)
+        return result['records']
+    except Exception as e:
+        st.error(f"Salesforceからのデータ取得エラー: {e}")
+        return []
 
-        def buscar_dados_salesforce(production_order):
-            try:
-                query = f"""
-                    SELECT Id, Name, snps_um__ProcessName__c, snps_um__ActualQt__c, snps_um__Item__r.Id, 
-                        snps_um__Item__r.Name, snps_um__ProcessOrderNo__c, snps_um__ProdOrder__r.Id, 
-                        snps_um__ProdOrder__r.Name, snps_um__Status__c, snps_um__WorkPlace__r.Id, 
-                        snps_um__WorkPlace__r.Name, snps_um__StockPlace__r.Name, snps_um__Item__c, 
-                        snps_um__Process__r.AITC_Acumulated_Price__c, AITC_OrderQt__c, snps_um__EndDateTime__c 
-                    FROM snps_um__WorkOrder__c 
-                    WHERE snps_um__ProdOrder__r.Name = '{production_order}'
-                    ORDER BY snps_um__EndDateTime__c DESC
+def buscar_materiais(materiais):
+    try:
+        sf = authenticate_salesforce()
+        query = f"""
+                SELECT snps_um__ChildItem__r.Name, snps_um__AddQt__c, 
+                       snps_um__ChildItem__r.AITC_ProcessPattern__c 
+                FROM snps_um__Composition2__c
+                WHERE snps_um__ParentItem2__c = '{materiais}'
                 """
-                result = sf.query(query)
-                return result['records']
-            except Exception as e:
-                st.error(f"Salesforceからのデータ取得エラー: {e}")  # "Erro ao buscar dados do Salesforce"
-                return []
+        result = sf.query(query)
+        return result['records']
+    except Exception as e:
+        st.error(f"この製品では材料が使用されていません: {e}")
+        return []
 
-        def buscar_materiais(materiais):
-            try:
-                query = f"""
-                        SELECT snps_um__ChildItem__r.Name, snps_um__AddQt__c, 
-                               snps_um__ChildItem__r.AITC_ProcessPattern__c 
-                        FROM snps_um__Composition2__c
-                        WHERE snps_um__ParentItem2__c = '{materiais}'
-                        """
-                result = sf.query(query)
-                return result['records']
-            except Exception as e:
-                st.error(f"この製品では材料が使用されていません: {e}")  # "Material não é usado nesse produto"
-                return []
-
-        registros = buscar_dados_salesforce(production_order)
-        if not registros:
-            st.warning("この生産オーダーに対応する記録が見つかりませんでした。")  # "Nenhum registro encontrado para essa Ordem de Produção."
+# Busca inicial e formulário
+if production_order and not st.session_state['registrado']:
+    # Busca inicial para o último "Done"
+    registros = buscar_dados_salesforce(production_order)
+    if not registros:
+        st.warning("この移行票に対応する記録が見つかりませんでした。")
+    else:
+        registros_done = [r for r in registros if r.get('snps_um__Status__c') == 'Done']
+        if not registros_done:
+            st.warning("この移行票には生産記録がありません。")
         else:
+            ultimo_done = registros_done[0]
+            quantidade_atual = int(ultimo_done.get('snps_um__ActualQt__c', 0))
+            process_order_no = int(ultimo_done.get('snps_um__ProcessOrderNo__c', 0))
+            work_place = str(ultimo_done.get("snps_um__WorkPlace__r", {}).get("Name", ""))
+            cumulative_cost = float(ultimo_done.get("snps_um__Process__r", {}).get("AITC_Acumulated_Price__c", 0.00))
+            process_name = str(ultimo_done.get("snps_um__ProcessName__c", ""))
+            product_code = str(ultimo_done.get("snps_um__Item__r", {}).get("Name", "N/A"))
+
+            # Busca de materiais (executada apenas uma vez)
             try:
                 materiais = registros[0]['snps_um__Item__c']
                 materiais = buscar_materiais(materiais)
+                if materiais:
+                    material = materiais[0]['snps_um__ChildItem__r']['Name']
+                    peso = materiais[0]['snps_um__AddQt__c']
+                    kosei = materiais[0]['snps_um__ChildItem__r']['AITC_ProcessPattern__c']
+                    sf = authenticate_salesforce()
+                    query = f"""
+                            SELECT snps_um__PaidProvideDiv__c
+                            FROM snps_um__Process__c
+                            WHERE snps_um__ProcessPattern__c = '{kosei}'
+                            """
+                    pagamento = sf.query(query)
+                    if pagamento['totalSize'] > 0:
+                        pagamento = "有償支給" if pagamento['records'][0]['snps_um__PaidProvideDiv__c'] == "Paid" else "無償支給"
             except Exception as e:
                 print(e)
 
-            if materiais:
-                material = materiais[0]['snps_um__ChildItem__r']['Name']
-                peso = materiais[0]['snps_um__AddQt__c']
-                kosei = materiais[0]['snps_um__ChildItem__r']['AITC_ProcessPattern__c']
-                query = f"""
-                        SELECT snps_um__PaidProvideDiv__c
-                        FROM snps_um__Process__c
-                        WHERE snps_um__ProcessPattern__c = '{kosei}'
-                        """
-                pagamento = sf.query(query)
-                if pagamento['totalSize'] > 0:
-                    pagamento = "有償支給" if pagamento['records'][0]['snps_um__PaidProvideDiv__c'] == "Paid" else "無償支給"
+            with st.form(key="form_registro_inventario"):
+                st.subheader("在庫登録")
 
-    except Exception as e:
-        st.error(f"Salesforceへの認証ができませんでした: {e}")  # "Não foi possível autenticar no Salesforce"
+                quantidade_contagem = st.number_input(
+                    "最後の完了工程の登録数",
+                    value=quantidade_atual,
+                    step=1,
+                    key="quantidade_input_form"
+                )
 
-# Exibição dos registros e formulário
-if registros and not st.session_state['registrado']:
-    registros_done = [r for r in registros if r.get('snps_um__Status__c') == 'Done']
+                process_order_input = st.number_input(
+                    "工程順序 (10〜999)",
+                    min_value=10,
+                    max_value=999,
+                    value=process_order_no,
+                    step=10,
+                    key="process_order_input_form"
+                )
 
-    if not registros_done:
-        st.warning("この生産オーダーには生産記録がありません。")  # "Esse production_order não tem registro de produção."
-    else:
-        ultimo_done = registros_done[0]
-        quantidade_atual = float(ultimo_done.get('snps_um__ActualQt__c', 0.0))
-        process_order_no = str(ultimo_done.get('snps_um__ProcessOrderNo__c', ''))
-        work_place = str(ultimo_done.get("snps_um__WorkPlace__r", {}).get("Name", ""))
-        cumulative_cost = str(ultimo_done.get("snps_um__Process__r", {}).get("AITC_Acumulated_Price__c", 0.0))
-        process_name = str(ultimo_done.get("snps_um__ProcessName__c", ""))
-        product_code = str(ultimo_done.get("snps_um__Item__r", {}).get("Name", "N/A"))
+                # Inicializar valores padrão
+                if st.session_state['process_order_atual'] is None:
+                    st.session_state['process_order_atual'] = process_order_no
 
-        with st.form(key="form_registro_inventario"):
-            st.subheader("在庫登録")  # "Registrar Inventário"
+                # Atualizar dados com base no process_order_input
+                if process_order_input != st.session_state['process_order_atual']:
+                    st.session_state['process_order_atual'] = process_order_input
+                    registros_atualizados = buscar_dados_salesforce(production_order, process_order_input)
+                    if registros_atualizados:
+                        registro_atual = registros_atualizados[0]
+                        work_place = str(registro_atual.get("snps_um__WorkPlace__r", {}).get("Name", ""))
+                        cumulative_cost = float(registro_atual.get("snps_um__Process__r", {}).get("AITC_Acumulated_Price__c", 0.00))
+                        process_name = str(registro_atual.get("snps_um__ProcessName__c", ""))
+                    else:
+                        st.warning(f"工程順序 {process_order_input} に対応する記録が見つかりませんでした。")
+                        work_place = ""
+                        cumulative_cost = 0.00
+                        process_name = ""
 
-            quantidade_contagem = st.number_input(
-                "現在の数量（最後のDone記録に基づく）",  # "Quantidade Atual (baseada no último registro Done)"
-                value=quantidade_atual,
-                step=0.01,
-                key="quantidade_input_form"
-            )
+                col1, col2 = st.columns(2)
+                # Exibir os valores atuais para depuração
+                with col1:
+                    st.write(f"作業場所: {work_place}")
+                with col2:
+                    st.write(f"工程名: {process_name}")
 
-            process_order_input = st.text_input(
-                "プロセスオーダー番号（最後のDone記録に基づく）",  # "ProcessOrderNo (baseado no último registro Done)"
-                value=process_order_no,
-                key="process_order_input_form"
-            )
+                submit_button = st.form_submit_button(label="登録")
 
-            submit_button = st.form_submit_button(label="登録")  # "Registrar"
-
-        if submit_button:
-            registrar_sucesso(quantidade_contagem, process_order_input, work_place, cumulative_cost, process_name, product_code, production_order)
+            if submit_button and work_place != "":
+                registrar_sucesso(quantidade_contagem, process_order_input, work_place, cumulative_cost, process_name, product_code, production_order, material, peso, pagamento)
 
