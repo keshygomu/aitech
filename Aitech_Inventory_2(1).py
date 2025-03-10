@@ -277,7 +277,7 @@ def buscar_dados_salesforce(production_order, process_order=None):
         """
         if process_order is not None:
             query += f" AND snps_um__ProcessOrderNo__c = {process_order}"
-        query += " ORDER BY snps_um__EndDateTime__c DESC"
+        query += " ORDER BY snps_um__ProcessOrderNo__c DESC"
         result = sf.query(query)
         return result['records']
     except Exception as e:
@@ -380,10 +380,14 @@ if production_order and not st.session_state['registrado']:
                 # Exibir os valores atuais para depuração
                 with col1:
                     st.write(f"作業場所: {work_place}")
+                    division_checkbox = st.checkbox("分割")
                 with col2:
                     st.write(f"工程名: {process_name}")
+                    submit_button = st.form_submit_button(label="登録")
 
-                submit_button = st.form_submit_button(label="登録")
+                if division_checkbox:
+                    production_order = production_order + "-1"
 
             if submit_button and work_place != "":
-                registrar_sucesso(quantidade_contagem, process_order_input, work_place, cumulative_cost, process_name, product_code, production_order, material, peso, pagamento)
+                registrar_sucesso(quantidade_contagem, process_order_input, work_place, cumulative_cost,
+                                  process_name, product_code, production_order, material, peso, pagamento)
