@@ -7,3 +7,4 @@ gspread_dataframe
 google-auth
 streamlit_qrcode_scanner
 firebase_admin
+pytz
