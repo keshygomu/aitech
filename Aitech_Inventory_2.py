@@ -7,12 +7,18 @@ import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, db
 from datetime import datetime
+import pytz  # Importar pytz para lidar com fusos horários
 
 material = ''
 peso = 0
 pagamento = ''
 data_to_save = []
-inventory = str(datetime.now().strftime("%Y%m%d"))
+
+# Definir o fuso horário do Japão (JST)
+jst = pytz.timezone('Asia/Tokyo')
+
+# Ajustar a variável inventory para usar JST
+inventory = datetime.now(jst).strftime("%Y%m%d")
 
 # Exibe a imagem como header
 st.image("aitech_logo_B.png", use_container_width=True)
@@ -99,7 +105,7 @@ if 'mostrar_sucesso' not in st.session_state:
 if 'dados_registro' not in st.session_state:
     st.session_state['dados_registro'] = {}
 if 'process_order_atual' not in st.session_state:
-    st.session_state['process_order_atual'] = None  # Inicializado como None
+    st.session_state['process_order_atual'] = None
 
 # Função para verificar se o registro já existe no Firebase
 def check_existing_record_with_date(production_order, date_str, data_to_save):
@@ -161,8 +167,9 @@ def reset_formulario():
 
 # Função para processar o registro bem-sucedido
 def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, process_name, product_code, production_order, material, peso, pagamento):
-    datetime_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    date_only = datetime.now().strftime("%Y-%m-%d")
+    # Usar JST para o horário
+    datetime_str = datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
+    date_only = datetime.now(jst).strftime("%Y-%m-%d")
 
     data_to_save = {
         "datetime": datetime_str,
@@ -301,7 +308,6 @@ def buscar_materiais(materiais):
 
 # Busca inicial e formulário
 if production_order and not st.session_state['registrado']:
-    # Busca inicial para o último "Done"
     registros = buscar_dados_salesforce(production_order)
     if not registros:
         st.warning("この移行票に対応する記録が見つかりませんでした。")
@@ -318,7 +324,6 @@ if production_order and not st.session_state['registrado']:
             process_name = str(ultimo_done.get("snps_um__ProcessName__c", ""))
             product_code = str(ultimo_done.get("snps_um__Item__r", {}).get("Name", "N/A"))
 
-            # Busca de materiais (executada apenas uma vez)
             try:
                 materiais = registros[0]['snps_um__Item__c']
                 materiais = buscar_materiais(materiais)
@@ -357,11 +362,9 @@ if production_order and not st.session_state['registrado']:
                     key="process_order_input_form"
                 )
 
-                # Inicializar valores padrão
                 if st.session_state['process_order_atual'] is None:
                     st.session_state['process_order_atual'] = process_order_no
 
-                # Atualizar dados com base no process_order_input
                 if process_order_input != st.session_state['process_order_atual']:
                     st.session_state['process_order_atual'] = process_order_input
                     registros_atualizados = buscar_dados_salesforce(production_order, process_order_input)
@@ -377,7 +380,6 @@ if production_order and not st.session_state['registrado']:
                         process_name = ""
 
                 col1, col2 = st.columns(2)
-                # Exibir os valores atuais para depuração
                 with col1:
                     st.write(f"作業場所: {work_place}")
                     division_checkbox = st.checkbox("分割")
