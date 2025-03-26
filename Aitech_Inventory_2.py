@@ -242,7 +242,6 @@ if st.session_state['mostrar_sucesso']:
         st.success("登録が正常に完了しました！")
 
     col1, col2 = st.columns(2)
-
     with col1:
         st.write(f"担当者: {st.session_state['owner']}")
         st.write(f"移行票: {st.session_state['dados_registro'].get('production_order', '')}")
@@ -258,24 +257,15 @@ if st.session_state['mostrar_sucesso']:
 
 # Leitura do QR-Code ou input manual
 col1, col2 = st.columns(2)
-
 with col1:
     qr_code = qrcode_scanner(key="qr_code_scanner")
     if qr_code:
         pass
-
 with col2:
     if st.session_state['reset_form']:
-        input_manual = st.text_input(
-            "移行票番号を入力してください:",
-            value="",
-            key="input_manual_reset"
-        )
+        input_manual = st.text_input("移行票番号を入力してください:", value="", key="input_manual_reset")
     else:
-        input_manual = st.text_input(
-            "移行票番号を入力してください:",
-            key="input_manual_normal"
-        )
+        input_manual = st.text_input("移行票番号を入力してください:", key="input_manual_normal")
 
 # Processamento do input
 production_order = ""
@@ -366,6 +356,11 @@ if production_order and not st.session_state['registrado']:
 
             with st.form(key="form_registro_inventario"):
                 st.subheader(f"在庫登録 - {product_code}")
+                # Se já existir registro para a data atual, exibe mensagem "登録済み！！"
+                date_only = datetime.now(jst).strftime("%Y-%m-%d")
+                exists_update, _ = check_for_update(production_order, date_only)
+                if exists_update:
+                    st.markdown('<p style="color: yellow; font-weight: bold;">登録済み！！</p>', unsafe_allow_html=True)
                 
                 quantidade_contagem = st.number_input(
                     "最後の完了工程の登録数",
@@ -382,23 +377,6 @@ if production_order and not st.session_state['registrado']:
                     step=10,
                     key="process_order_input_form"
                 )
-                
-                # Verifica se já existe registro no Firebase para a data atual, production_order e process_order
-                date_only = datetime.now(jst).strftime("%Y-%m-%d")
-                if check_existing_record_with_date(production_order, date_only, {
-                    "datetime": datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
-                    "owner": st.session_state['owner'],
-                    "quantity": quantidade_contagem,
-                    "process_order": process_order_input,
-                    "product_code": product_code,
-                    "process_name": process_name,
-                    "work_place": work_place,
-                    "cumulative_cost": cumulative_cost,
-                    "material": material,
-                    "material_provision_type": pagamento,
-                    "material_weight": peso
-                })[0]:
-                    st.markdown('<p style="color: yellow; font-weight: bold;">登録済み！！</p>', unsafe_allow_html=True)
                 
                 if st.session_state['process_order_atual'] is None:
                     st.session_state['process_order_atual'] = process_order_no
