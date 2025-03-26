@@ -356,7 +356,7 @@ if production_order and not st.session_state['registrado']:
                 date_only = datetime.now(jst).strftime("%Y-%m-%d")
                 exists_update, _ = check_for_update(production_order, date_only)
                 if exists_update:
-                    st.markdown('<p style="color: yellow; font-weight: bold;">登録済み！！</p>', unsafe_allow_html=True)
+                    st.markdown('<p style="color: yellow; font-weight: bold; font-size: 24px; text-align: center;">登録済み！！</p>', unsafe_allow_html=True)
                 
                 quantidade_contagem = st.number_input(
                     "最後の完了工程の登録数",
