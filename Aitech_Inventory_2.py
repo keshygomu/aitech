@@ -353,6 +353,23 @@ if production_order and not st.session_state['registrado']:
             except Exception as e:
                 print(e)
 
+            # Injetando CSS customizado
+            st.markdown("""
+                <style>
+                .button-container {
+                  display: flex;
+                  flex-direction: row;
+                  justify-content: space-between;
+                  white-space: nowrap;
+                  gap: 20px; /* Espaçamento entre os botões */
+                }
+                .button-container > div {
+                  flex: 1;
+                  text-align: center;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+
             with st.form(key="form_registro_inventario"):
                 st.subheader(f"在庫登録 - {production_order}")
                 st.subheader(f"{product_code}")
@@ -400,10 +417,14 @@ if production_order and not st.session_state['registrado']:
                     division_checkbox = st.checkbox("分割")
                 with col2:
                     st.write(f"工程名: {process_name}")
-                # Linha para os botões: "登録" à esquerda e "訂正" à direita
-                button_col1, button_col2 = st.columns([1,1])
-                submit_button = button_col1.form_submit_button(label="登録")
-                correction_button = button_col2.form_submit_button(label="訂正")
+                # Container para os botões
+                st.markdown('<div class="button-container">', unsafe_allow_html=True)
+                col1, col2 = st.columns(2)
+                with col1:
+                    submit_button = st.form_submit_button(label="登録")
+                with col2:
+                    correction_button = st.form_submit_button(label="訂正")
+                st.markdown('</div>', unsafe_allow_html=True)
 
                 if division_checkbox:
                     production_order = production_order + "-1"
