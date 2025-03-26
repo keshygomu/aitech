@@ -362,7 +362,10 @@ if production_order and not st.session_state['registrado']:
                 if exists_update:
                     st.markdown('<p style="color: yellow; font-weight: bold; font-size: 24px; text-align: center;">登　録　済　み　！！</p>', unsafe_allow_html=True)
                 
-                correction_button = st.form_submit_button(label="訂正")
+                # Somente exibe o botão "訂正" se já existir um registro
+                correction_button = None
+                if exists_update:
+                    correction_button = st.form_submit_button(label="訂正")
                 
                 quantidade_contagem = st.number_input(
                     "最後の完了工程の登録数",
