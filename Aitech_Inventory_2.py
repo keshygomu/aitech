@@ -166,7 +166,7 @@ def gravar_firebase(data):
     new_record = ref.push(data)
     return new_record.key
 
-# Função para atualizar registro no Firebase (mantida para outras operações, se necessário)
+# Função para atualizar registro no Firebase (update completo)
 def update_firebase(record_id, data):
     ref = db.reference(f"{inventory}/{record_id}")
     ref.update(data)
@@ -187,7 +187,7 @@ def reset_formulario():
     st.rerun()
 
 # Função para processar o registro bem-sucedido
-def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, process_name, product_code, production_order, material, peso, pagamento):
+def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, process_name, product_code, production_order, material, peso, pagamento, correction=False):
     # Usar JST para o horário
     datetime_str = datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
     date_only = datetime.now(jst).strftime("%Y-%m-%d")
@@ -211,8 +211,12 @@ def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, pr
     update_exists, update_key = check_for_update(production_order, date_only)
     if update_exists:
         st.session_state['update'] = True
-        # Em vez de atualizar o registro inteiro, adiciona os 4 novos itens numerados
-        update_firebase_append(update_key, data_to_save)
+        if correction:
+            # Se for correção, atualiza completamente o registro
+            update_firebase(update_key, data_to_save)
+        else:
+            # Caso contrário, adiciona os novos itens numerados
+            update_firebase_append(update_key, data_to_save)
     else:
         record_id = gravar_firebase(data_to_save)
 
@@ -396,11 +400,29 @@ if production_order and not st.session_state['registrado']:
                     division_checkbox = st.checkbox("分割")
                 with col2:
                     st.write(f"工程名: {process_name}")
-                    submit_button = st.form_submit_button(label="登録")
+                # Linha para os botões: "登録" à esquerda e "訂正" à direita
+                button_col1, button_col2 = st.columns([1,1])
+                submit_button = button_col1.form_submit_button(label="登録")
+                correction_button = button_col2.form_submit_button(label="訂正")
 
                 if division_checkbox:
                     production_order = production_order + "-1"
 
+            # Após o formulário, processa o botão pressionado
             if submit_button and work_place != "":
-                registrar_sucesso(quantidade_contagem, process_order_input, work_place, cumulative_cost,
-                                  process_name, product_code, production_order, material, peso, pagamento)
+                registrar_sucesso(
+                    quantidade_contagem, process_order_input, work_place, cumulative_cost,
+                    process_name, product_code, production_order, material, peso, pagamento,
+                    correction=False
+                )
+            elif correction_button and work_place != "":
+                # Se não houver registro para update, exibe aviso
+                exists_update, _ = check_for_update(production_order, date_only)
+                if exists_update:
+                    registrar_sucesso(
+                        quantidade_contagem, process_order_input, work_place, cumulative_cost,
+                        process_name, product_code, production_order, material, peso, pagamento,
+                        correction=True
+                    )
+                else:
+                    st.warning("レコードが存在しないため、訂正は実行できません。")
