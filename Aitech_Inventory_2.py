@@ -353,23 +353,6 @@ if production_order and not st.session_state['registrado']:
             except Exception as e:
                 print(e)
 
-            # Injetando CSS customizado
-            st.markdown("""
-                <style>
-                .button-container {
-                  display: flex;
-                  flex-direction: row;
-                  justify-content: space-between;
-                  white-space: nowrap;
-                  gap: 20px; /* Espaçamento entre os botões */
-                }
-                .button-container > div {
-                  flex: 1;
-                  text-align: center;
-                }
-                </style>
-                """, unsafe_allow_html=True)
-
             with st.form(key="form_registro_inventario"):
                 st.subheader(f"在庫登録 - {production_order}")
                 st.subheader(f"{product_code}")
@@ -378,6 +361,8 @@ if production_order and not st.session_state['registrado']:
                 exists_update, _ = check_for_update(production_order, date_only)
                 if exists_update:
                     st.markdown('<p style="color: yellow; font-weight: bold; font-size: 24px; text-align: center;">登　録　済　み　！！</p>', unsafe_allow_html=True)
+                
+                correction_button = st.form_submit_button(label="訂正")
                 
                 quantidade_contagem = st.number_input(
                     "最後の完了工程の登録数",
@@ -418,14 +403,8 @@ if production_order and not st.session_state['registrado']:
                 with col2:
                     st.write(f"工程名: {process_name}")
                 # Container para os botões
-                st.markdown('<div class="button-container">', unsafe_allow_html=True)
-                col1, col2 = st.columns(2)
-                with col1:
-                    submit_button = st.form_submit_button(label="登録")
-                with col2:
-                    correction_button = st.form_submit_button(label="訂正")
-                st.markdown('</div>', unsafe_allow_html=True)
-
+                submit_button = st.form_submit_button(label="登録")
+                                                      
                 if division_checkbox:
                     production_order = production_order + "-1"
 
