@@ -274,11 +274,12 @@ if qr_code:
     st.session_state['reset_form'] = False
 elif input_manual:
     production_order = f"PO-{str(input_manual.strip()).zfill(6)}"
-
+"""
 if production_order:
     st.write(f"検出された移行票: {production_order}")
 else:
     st.info("QRコードの読み取りまたは手動入力を待っています。")
+"""
 
 # Função para buscar dados do Salesforce
 def buscar_dados_salesforce(production_order, process_order=None):
