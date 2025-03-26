@@ -355,7 +355,8 @@ if production_order and not st.session_state['registrado']:
                 print(e)
 
             with st.form(key="form_registro_inventario"):
-                st.subheader(f"在庫登録 - {product_code}")
+                st.subheader(f"在庫登録 - {production_order}")
+                st.subheader(f"{product_code}")
                 # Se já existir registro para a data atual, exibe mensagem "登録済み！！"
                 date_only = datetime.now(jst).strftime("%Y-%m-%d")
                 exists_update, _ = check_for_update(production_order, date_only)
