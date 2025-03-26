@@ -139,19 +139,26 @@ def check_for_update(production_order, date_str):
                 return True, key
     return False, None
 
-# NOVA FUNÇÃO: Verifica se já existe um registro no Firebase comparando data atual, production_order e process_order
-def check_existing_record_simple(production_order, process_order, date_str):
-    ref = db.reference(inventory)
-    records = ref.order_by_child("production_order").equal_to(production_order).get()
-    if records:
-        for key, value in records.items():
-            record_date = value.get("datetime", "").split()[0]
-            try:
-                if record_date == date_str and int(value.get("process_order", 0)) == int(process_order):
-                    return True
-            except ValueError:
-                continue
-    return False
+# NOVA FUNÇÃO: Atualiza o registro existente adicionando novos itens numerados
+def update_firebase_append(record_id, new_data):
+    ref = db.reference(f"{inventory}/{record_id}")
+    current_record = ref.get()
+    # Conta quantos registros adicionais já existem (chaves do tipo "datetimeXX")
+    appended_count = 0
+    for key in current_record.keys():
+        if key.startswith("datetime") and key != "datetime":
+            appended_count += 1
+    new_index = appended_count + 1
+    new_index_str = str(new_index).zfill(2)
+    # Cria os novos itens com os respectivos valores
+    update_data = {
+        f"datetime{new_index_str}": new_data["datetime"],
+        f"owner{new_index_str}": new_data["owner"],
+        f"quantity{new_index_str}": new_data["quantity"],
+        f"process_order{new_index_str}": new_data["process_order"],
+    }
+    ref.update(update_data)
+    return record_id
 
 # Função para gravar no Firebase
 def gravar_firebase(data):
@@ -159,7 +166,7 @@ def gravar_firebase(data):
     new_record = ref.push(data)
     return new_record.key
 
-# Função para atualizar registro no Firebase
+# Função para atualizar registro no Firebase (mantida para outras operações, se necessário)
 def update_firebase(record_id, data):
     ref = db.reference(f"{inventory}/{record_id}")
     ref.update(data)
@@ -201,11 +208,11 @@ def registrar_sucesso(quantidade, process_order, work_place, cumulative_cost, pr
     }
 
     exists, existing_key = check_existing_record_with_date(production_order, date_only, data_to_save)
-
     update_exists, update_key = check_for_update(production_order, date_only)
     if update_exists:
         st.session_state['update'] = True
-        update_firebase(update_key, data_to_save)
+        # Em vez de atualizar o registro inteiro, adiciona os 4 novos itens numerados
+        update_firebase_append(update_key, data_to_save)
     else:
         record_id = gravar_firebase(data_to_save)
 
@@ -378,8 +385,20 @@ if production_order and not st.session_state['registrado']:
                 
                 # Verifica se já existe registro no Firebase para a data atual, production_order e process_order
                 date_only = datetime.now(jst).strftime("%Y-%m-%d")
-                if check_existing_record_simple(production_order, process_order_input, date_only):
-                    st.markdown('<p style="color: yellow; font-weight: bold;">登  録  済  み  ！！</p>', unsafe_allow_html=True)
+                if check_existing_record_with_date(production_order, date_only, {
+                    "datetime": datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S"),
+                    "owner": st.session_state['owner'],
+                    "quantity": quantidade_contagem,
+                    "process_order": process_order_input,
+                    "product_code": product_code,
+                    "process_name": process_name,
+                    "work_place": work_place,
+                    "cumulative_cost": cumulative_cost,
+                    "material": material,
+                    "material_provision_type": pagamento,
+                    "material_weight": peso
+                })[0]:
+                    st.markdown('<p style="color: yellow; font-weight: bold;">登録済み！！</p>', unsafe_allow_html=True)
                 
                 if st.session_state['process_order_atual'] is None:
                     st.session_state['process_order_atual'] = process_order_no
