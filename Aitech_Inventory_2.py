@@ -107,7 +107,7 @@ if 'dados_registro' not in st.session_state:
 if 'process_order_atual' not in st.session_state:
     st.session_state['process_order_atual'] = None
 
-# Função para verificar se o registro já existe no Firebase
+# Função para verificar se o registro já existe no Firebase (comparando todos os itens)
 def check_existing_record_with_date(production_order, date_str, data_to_save):
     ref = db.reference(inventory)
     records = ref.order_by_child("production_order").equal_to(production_order).get()
@@ -128,7 +128,7 @@ def check_existing_record_with_date(production_order, date_str, data_to_save):
                     return True, key
     return False, None
 
-# Função para verificar se o registro já existe para update
+# Função para verificar se o registro já existe para update (comparando production_order e data)
 def check_for_update(production_order, date_str):
     ref = db.reference(inventory)
     records = ref.order_by_child("production_order").equal_to(production_order).get()
@@ -138,6 +138,20 @@ def check_for_update(production_order, date_str):
             if record_date == date_str:
                 return True, key
     return False, None
+
+# NOVA FUNÇÃO: Verifica se já existe um registro no Firebase comparando data atual, production_order e process_order
+def check_existing_record_simple(production_order, process_order, date_str):
+    ref = db.reference(inventory)
+    records = ref.order_by_child("production_order").equal_to(production_order).get()
+    if records:
+        for key, value in records.items():
+            record_date = value.get("datetime", "").split()[0]
+            try:
+                if record_date == date_str and int(value.get("process_order", 0)) == int(process_order):
+                    return True
+            except ValueError:
+                continue
+    return False
 
 # Função para gravar no Firebase
 def gravar_firebase(data):
@@ -345,7 +359,7 @@ if production_order and not st.session_state['registrado']:
 
             with st.form(key="form_registro_inventario"):
                 st.subheader(f"在庫登録 - {product_code}")
-
+                
                 quantidade_contagem = st.number_input(
                     "最後の完了工程の登録数",
                     value=quantidade_atual,
@@ -361,7 +375,12 @@ if production_order and not st.session_state['registrado']:
                     step=10,
                     key="process_order_input_form"
                 )
-
+                
+                # Verifica se já existe registro no Firebase para a data atual, production_order e process_order
+                date_only = datetime.now(jst).strftime("%Y-%m-%d")
+                if check_existing_record_simple(production_order, process_order_input, date_only):
+                    st.markdown('<p style="color: yellow; font-weight: bold;">登録済み！！</p>', unsafe_allow_html=True)
+                
                 if st.session_state['process_order_atual'] is None:
                     st.session_state['process_order_atual'] = process_order_no
 
@@ -378,7 +397,6 @@ if production_order and not st.session_state['registrado']:
                         work_place = ""
                         cumulative_cost = 0.00
                         process_name = ""
-
                 col1, col2 = st.columns(2)
                 with col1:
                     st.write(f"作業場所: {work_place}")
@@ -393,4 +411,3 @@ if production_order and not st.session_state['registrado']:
             if submit_button and work_place != "":
                 registrar_sucesso(quantidade_contagem, process_order_input, work_place, cumulative_cost,
                                   process_name, product_code, production_order, material, peso, pagamento)
-
