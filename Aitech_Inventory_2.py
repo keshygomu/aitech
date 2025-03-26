@@ -379,7 +379,7 @@ if production_order and not st.session_state['registrado']:
                 # Verifica se já existe registro no Firebase para a data atual, production_order e process_order
                 date_only = datetime.now(jst).strftime("%Y-%m-%d")
                 if check_existing_record_simple(production_order, process_order_input, date_only):
-                    st.markdown('<p style="color: yellow; font-weight: bold;">登録済み！！</p>', unsafe_allow_html=True)
+                    st.markdown('<p style="color: yellow; font-weight: bold;">登  録  済  み  ！！</p>', unsafe_allow_html=True)
                 
                 if st.session_state['process_order_atual'] is None:
                     st.session_state['process_order_atual'] = process_order_no
