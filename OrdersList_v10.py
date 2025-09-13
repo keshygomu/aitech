@@ -27,13 +27,13 @@ def query_salesforce(token, instance_url, soql):
     resp.raise_for_status()
     return resp.json()["records"]
 
-def update_salesforce(token, instance_url, record_id):
+def update_salesforce(token, instance_url, record_id, value: bool):
     url = f"{instance_url}/services/data/v57.0/sobjects/snps_um__SalesOrderDetail__c/{record_id}"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
-    data = {"AITC_Shipping_Prep_Complete__c": True}
+    data = {"AITC_Shipping_Prep_Complete__c": value}
     resp = requests.patch(url, headers=headers, json=data)
     return resp.status_code == 204
 
@@ -41,7 +41,6 @@ def update_salesforce(token, instance_url, record_id):
 # ⚙️ Configuração página
 # ========================
 st.set_page_config(page_title="出荷計画リスト", layout="wide")
-
 st.title("📦 出荷計画リスト")
 
 # ========================
@@ -55,6 +54,9 @@ with col2:
 with col3:
     mostrar_todos = st.checkbox("すべて表示", value=False)
 
+# ========================
+# 🔎 Executar consulta
+# ========================
 if st.button("検索"):
     try:
         auth = connect_salesforce()
@@ -90,24 +92,16 @@ if st.button("検索"):
         # ========================
         st.markdown("""
         <style>
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 10px 0;
-            font-size: 14px;
+        .completo {
+            background-color: #000000 !important;
+            color: #ff80ab !important;
+            font-weight: bold;
         }
-        th, td {
-            border: 1px solid #444;
-            padding: 4px 8px;
-            text-align: left;
-        }
-        td.right {
+        .right {
             text-align: right;
         }
-        tr.completo {
-            background-color: #000000;
-            color: #ff80ab;
-            font-weight: bold;
+        .stCheckbox {
+            transform: scale(1.2);
         }
         </style>
         """, unsafe_allow_html=True)
@@ -121,41 +115,48 @@ if st.button("検索"):
             grupos[data].append(r)
 
         # ========================
-        # 📝 Renderizar tabelas por data
+        # 📝 Renderizar tabelas
         # ========================
         for data, registros in sorted(grupos.items()):
-            # Cabeçalho da data
             st.markdown(f"<h3 style='color:#ff9100;'>{html.escape(data)}</h3>", unsafe_allow_html=True)
 
-            rows = []
             for r in registros:
+                record_id = r["Id"]
                 completo = r.get("AITC_Shipping_Prep_Complete__c", False)
-                row_class = "completo" if completo else ""
-                checkmark = "✔️" if completo else "⬜"
 
-                rows.append(
-                    f"<tr class='{row_class}'>"
-                    f"<td>{checkmark}</td>"
-                    f"<td>{html.escape(r['snps_um__SalesOrder__r']['Name'])}</td>"
-                    f"<td>{html.escape(r.get('snps_um__Note__c',''))}</td>"
-                    f"<td>{html.escape(r['snps_um__Item__r']['Name'])}</td>"
-                    f"<td class='right'>{int(r['snps_um__Quantity__c'])}</td>"
-                    f"<td>{html.escape(r['snps_um__SalesOrder__r']['snps_um__BillCust__r']['Name'])}</td>"
-                    f"<td>{html.escape(r['snps_um__DeliveryPeriod__c'])}</td>"
-                    "</tr>"
-                )
+                # Colunas da linha
+                cols = st.columns([1,2,2,2,1,2,2])
+                with cols[0]:
+                    novo_status = st.checkbox("完了", value=completo, key=f"chk_{record_id}")
+                with cols[1]:
+                    st.write(r['snps_um__SalesOrder__r']['Name'])
+                with cols[2]:
+                    st.write(r.get('snps_um__Note__c',''))
+                with cols[3]:
+                    st.write(r['snps_um__Item__r']['Name'])
+                with cols[4]:
+                    st.write(int(r['snps_um__Quantity__c']))
+                with cols[5]:
+                    st.write(r['snps_um__SalesOrder__r']['snps_um__BillCust__r']['Name'])
+                with cols[6]:
+                    st.write(r['snps_um__DeliveryPeriod__c'])
 
-            html_table = (
-                "<table>"
-                "<thead><tr>"
-                "<th>完了</th><th>受注番号</th><th>備考</th><th>品目</th><th>数量</th><th>顧客</th><th>納期</th>"
-                "</tr></thead>"
-                "<tbody>"
-                + "".join(rows) +
-                "</tbody></table>"
-            )
-
-            st.markdown(html_table, unsafe_allow_html=True)
+                # Se o usuário mudar o estado do checkbox
+                if novo_status != completo:
+                    st.warning("⚠️ 確認: この注文を更新しますか？")
+                    c1, c2 = st.columns([1,1])
+                    with c1:
+                        if st.button("はい", key=f"yes_{record_id}"):
+                            sucesso = update_salesforce(token, instance_url, record_id, novo_status)
+                            if sucesso:
+                                st.success("✅ 更新しました")
+                                st.rerun()
+                            else:
+                                st.error("❌ 更新失敗しました")
+                    with c2:
+                        if st.button("いいえ", key=f"no_{record_id}"):
+                            st.session_state[f"chk_{record_id}"] = completo
+                            st.info("キャンセルしました")
 
     except Exception as e:
-        st.error(f"⚠️ Erro: {e}")
+        st.error(f"⚠️ エラー: {e}")
