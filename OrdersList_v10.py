@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import datetime
 import html
+from collections import defaultdict
 
 # ========================
 # 🔑 Conexão Salesforce
@@ -112,37 +113,49 @@ if st.button("検索"):
         """, unsafe_allow_html=True)
 
         # ========================
-        # 📝 Monta tabela HTML
+        # 📊 Agrupar por data
         # ========================
-        rows = []
+        grupos = defaultdict(list)
         for r in dados:
-            completo = r.get("AITC_Shipping_Prep_Complete__c", False)
-            row_class = "completo" if completo else ""
-            checkmark = "✔️" if completo else "⬜"
+            data = r.get("snps_um__ShipPlanDate__c")
+            grupos[data].append(r)
 
-            rows.append(
-                f"<tr class='{row_class}'>"
-                f"<td>{checkmark}</td>"
-                f"<td>{html.escape(r['snps_um__SalesOrder__r']['Name'])}</td>"
-                f"<td>{html.escape(r.get('snps_um__Note__c',''))}</td>"
-                f"<td>{html.escape(r['snps_um__Item__r']['Name'])}</td>"
-                f"<td class='right'>{int(r['snps_um__Quantity__c'])}</td>"
-                f"<td>{html.escape(r['snps_um__SalesOrder__r']['snps_um__BillCust__r']['Name'])}</td>"
-                f"<td>{html.escape(r['snps_um__DeliveryPeriod__c'])}</td>"
-                "</tr>"
+        # ========================
+        # 📝 Renderizar tabelas por data
+        # ========================
+        for data, registros in sorted(grupos.items()):
+            # Cabeçalho da data
+            st.markdown(f"<h3 style='color:#ff9100;'>{html.escape(data)}</h3>", unsafe_allow_html=True)
+
+            rows = []
+            for r in registros:
+                completo = r.get("AITC_Shipping_Prep_Complete__c", False)
+                row_class = "completo" if completo else ""
+                checkmark = "✔️" if completo else "⬜"
+
+                rows.append(
+                    f"<tr class='{row_class}'>"
+                    f"<td>{checkmark}</td>"
+                    f"<td>{html.escape(r['snps_um__SalesOrder__r']['Name'])}</td>"
+                    f"<td>{html.escape(r.get('snps_um__Note__c',''))}</td>"
+                    f"<td>{html.escape(r['snps_um__Item__r']['Name'])}</td>"
+                    f"<td class='right'>{int(r['snps_um__Quantity__c'])}</td>"
+                    f"<td>{html.escape(r['snps_um__SalesOrder__r']['snps_um__BillCust__r']['Name'])}</td>"
+                    f"<td>{html.escape(r['snps_um__DeliveryPeriod__c'])}</td>"
+                    "</tr>"
+                )
+
+            html_table = (
+                "<table>"
+                "<thead><tr>"
+                "<th>完了</th><th>受注番号</th><th>備考</th><th>品目</th><th>数量</th><th>顧客</th><th>納期</th>"
+                "</tr></thead>"
+                "<tbody>"
+                + "".join(rows) +
+                "</tbody></table>"
             )
 
-        html_table = (
-            "<table>"
-            "<thead><tr>"
-            "<th>完了</th><th>受注番号</th><th>備考</th><th>品目</th><th>数量</th><th>顧客</th><th>納期</th>"
-            "</tr></thead>"
-            "<tbody>"
-            + "".join(rows) +
-            "</tbody></table>"
-        )
-
-        st.markdown(html_table, unsafe_allow_html=True)
+            st.markdown(html_table, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"⚠️ Erro: {e}")
