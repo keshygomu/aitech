@@ -1,160 +1,138 @@
 import streamlit as st
-import pandas as pd
 import requests
-from io import BytesIO
+import pandas as pd
+from collections import defaultdict
 
-# ========================
-# FUNÇÕES SALESFORCE
-# ========================
-
+# ==============================
+# Conexão Salesforce
+# ==============================
 def connect_salesforce():
-    cfg = st.secrets["salesforce"]
-    url = f"{cfg['domain']}/services/oauth2/token"
-    params = {
+    login_url = "https://login.salesforce.com/services/oauth2/token"
+    data = {
         "grant_type": "password",
-        "client_id": cfg["client_id"],
-        "client_secret": cfg["client_secret"],
-        "username": cfg["username"],
-        "password": cfg["password"]
+        "client_id": st.secrets["salesforce"]["CLIENT_ID"],
+        "client_secret": st.secrets["salesforce"]["CLIENT_SECRET"],
+        "username": st.secrets["salesforce"]["USERNAME"],
+        "password": st.secrets["salesforce"]["PASSWORD"]
     }
-    resp = requests.post(url, data=params)
+    resp = requests.post(login_url, data=data)
     resp.raise_for_status()
     return resp.json()
 
-def run_query(access_token, instance_url, query):
-    headers = {"Authorization": f"Bearer {access_token}"}
-    url = f"{instance_url}/services/data/v57.0/query/"
+def query_salesforce(query, token, instance_url):
+    url = f"{instance_url}/services/data/v58.0/query/"
+    headers = {"Authorization": f"Bearer {token}"}
     resp = requests.get(url, headers=headers, params={"q": query})
     resp.raise_for_status()
-    return resp.json()["records"]
+    return resp.json()
 
-def update_status(access_token, instance_url, record_id):
-    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-    url = f"{instance_url}/services/data/v57.0/sobjects/snps_um__SalesOrderDetail__c/{record_id}"
-    data = {"AITC_Shipping_Prep_Complete__c": True}
-    resp = requests.patch(url, headers=headers, json=data)
+def update_salesforce(record_id, token, instance_url):
+    url = f"{instance_url}/services/data/v58.0/sobjects/snps_um__SalesOrderDetail__c/{record_id}"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    resp = requests.patch(url, headers=headers, json={"AITC_Shipping_Prep_Complete__c": True})
     return resp.status_code == 204
 
-# ========================
-# STREAMLIT APP
-# ========================
-st.set_page_config(page_title="出荷計画", layout="wide")
-st.title("📦 出荷計画データ")
-
-# CSS para destacar linhas concluídas
+# ==============================
+# Estilo CSS
+# ==============================
 st.markdown("""
 <style>
-.row-completo {
-    background-color: black !important;
-    color: #ff80ab !important; /* texto pink */
-    font-weight: bold;
+/* Compactar linhas */
+table, th, td {
+  padding: 3px 6px !important;
+  font-size: 13px !important;
+}
+
+/* Estilo das linhas completas */
+tr.completo td {
+  background-color: #121212 !important;
+  color: #ff80ab !important;
+  font-weight: bold;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Inputs
-col1, col2, col3 = st.columns([1,1,1])
-with col1:
+# ==============================
+# Título
+# ==============================
+st.title("出荷計画")
+
+# ==============================
+# Filtros
+# ==============================
+with st.form("filtro_datas"):
     data_inicio = st.date_input("開始日")
-with col2:
     data_fim = st.date_input("終了日")
-with col3:
-    mostrar_todos = st.checkbox("すべて表示")
+    mostrar_todos = st.checkbox("すべて表示", value=False)
+    buscar = st.form_submit_button("検索")
 
-if st.button("検索"):
-    try:
-        # Autenticar
-        auth = connect_salesforce()
-        token = auth["access_token"]
-        instance = auth["instance_url"]
+if buscar:
+    auth = connect_salesforce()
+    token = auth["access_token"]
+    instance_url = auth["instance_url"]
 
-        filtro_status = "" if mostrar_todos else "AND AITC_Shipping_Prep_Complete__c = False"
+    filtro_status = "" if mostrar_todos else "AND AITC_Shipping_Prep_Complete__c = False"
 
-        query = f"""
-            SELECT Id,
-                   snps_um__ShipPlanDate__c,
-                   snps_um__SalesOrder__r.Name,
-                   snps_um__Note__c,
-                   snps_um__Item__r.Name,
-                   snps_um__Quantity__c,
-                   snps_um__SalesOrder__r.snps_um__BillCust__r.Name,
-                   snps_um__DeliveryPeriod__c,
-                   AITC_Shipping_Prep_Complete__c
-            FROM snps_um__SalesOrderDetail__c
-            WHERE snps_um__SalesOrderRemainCloseFlg__c = False
-              AND snps_um__ShipPlanDate__c >= {data_inicio}
-              AND snps_um__ShipPlanDate__c <= {data_fim}
-              {filtro_status}
-            ORDER BY snps_um__ShipPlanDate__c, snps_um__Note__c
-        """
+    query = f"""
+        SELECT Id,
+               snps_um__ShipPlanDate__c,
+               snps_um__SalesOrder__r.Name,
+               snps_um__Note__c,
+               snps_um__Item__r.Name,
+               snps_um__Quantity__c,
+               snps_um__SalesOrder__r.snps_um__BillCust__r.Name,
+               snps_um__DeliveryPeriod__c,
+               AITC_Shipping_Prep_Complete__c
+        FROM snps_um__SalesOrderDetail__c
+        WHERE snps_um__SalesOrderRemainCloseFlg__c = False
+          AND snps_um__ShipPlanDate__c >= {data_inicio}
+          AND snps_um__ShipPlanDate__c <= {data_fim}
+          {filtro_status}
+        ORDER BY snps_um__ShipPlanDate__c, snps_um__Note__c
+    """
 
-        registros = run_query(token, instance, query)
+    results = query_salesforce(query, token, instance_url)
+    st.session_state["dados"] = results["records"]
+    st.session_state["token"] = token
+    st.session_state["instance_url"] = instance_url
+    st.session_state["mostrar_todos"] = mostrar_todos
 
-        if registros:
-            df = pd.json_normalize(registros)
+# ==============================
+# Mostrar resultados
+# ==============================
+if "dados" in st.session_state:
+    dados = st.session_state["dados"]
+    mostrar_todos = st.session_state["mostrar_todos"]
 
-            # Filtro de cliente
-            clientes = sorted(df["snps_um__SalesOrder__r.snps_um__BillCust__r.Name"].dropna().unique())
-            cliente_sel = st.selectbox("顧客で絞り込み", ["すべて"] + clientes)
+    grupos = defaultdict(list)
+    for r in dados:
+        grupos[r["snps_um__ShipPlanDate__c"]].append(r)
 
-            if cliente_sel != "すべて":
-                df = df[df["snps_um__SalesOrder__r.snps_um__BillCust__r.Name"] == cliente_sel]
+    for data, registros in grupos.items():
+        st.markdown(f"### 📅 {data}")
+        df_display = []
 
-            # Resumo geral
-            colA, colB, colC, colD = st.columns(4)
-            colA.metric("出荷件数", len(df))
-            colB.metric("完了", (df["AITC_Shipping_Prep_Complete__c"]==True).sum())
-            colC.metric("待ち", (df["AITC_Shipping_Prep_Complete__c"]==False).sum())
-            colD.metric("合計", int(df["snps_um__Quantity__c"].sum()))
+        for r in registros:
+            completo = r.get("AITC_Shipping_Prep_Complete__c", False)
+            row_style = "completo" if (completo and mostrar_todos) else ""
 
-            # Gráfico (完了 vs 待ち por dia)
-            resumo = df.groupby(["snps_um__ShipPlanDate__c","AITC_Shipping_Prep_Complete__c"]).size().unstack().fillna(0)
-            resumo = resumo.rename(columns={True:"完了", False:"待ち"})
-            st.bar_chart(resumo)
+            cols = st.columns([1, 2, 2, 2, 1, 2, 2, 1])
+            with cols[0]:
+                if not completo:
+                    if st.button("✅ 完了", key=r["Id"]):
+                        ok = update_salesforce(r["Id"], st.session_state["token"], st.session_state["instance_url"])
+                        if ok:
+                            r["AITC_Shipping_Prep_Complete__c"] = True
+                            if not mostrar_todos:
+                                # Remove da lista
+                                st.session_state["dados"] = [x for x in st.session_state["dados"] if x["Id"] != r["Id"]]
+                            st.experimental_rerun()
+                else:
+                    st.write("✔️")
 
-            st.subheader("📋 明細一覧")
-
-            # Tabela interativa com botões 完了
-            for idx, row in df.iterrows():
-                # Classe CSS condicional
-                row_class = "row-completo" if (row["AITC_Shipping_Prep_Complete__c"] and mostrar_todos) else ""
-
-                st.markdown(f"<div class='{row_class}'>", unsafe_allow_html=True)
-
-                cols = st.columns([1,2,2,2,1,2,2,1])
-                with cols[0]:
-                    if not row["AITC_Shipping_Prep_Complete__c"]:
-                        if st.button("✅ 完了", key=row["Id"]):
-                            ok = update_status(token, instance, row["Id"])
-                            if ok:
-                                st.success(f"{row['snps_um__Note__c']} を完了にしました")
-                                if not mostrar_todos:
-                                    # Ocultar linha → recarregar
-                                    st.experimental_rerun()
-                            else:
-                                st.error("更新エラー")
-                    else:
-                        st.write("✔️")
-
-                cols[1].write(str(row.get("snps_um__ShipPlanDate__c","")))
-                cols[2].write(str(row.get("snps_um__SalesOrder__r.Name","")))
-                cols[3].write(str(row.get("snps_um__Note__c","")))
-                cols[4].write(int(row.get("snps_um__Quantity__c",0)))
-                cols[5].write(str(row.get("snps_um__SalesOrder__r.snps_um__BillCust__r.Name","")))
-                cols[6].write(str(row.get("snps_um__DeliveryPeriod__c","")))
-                cols[7].write("完了" if row["AITC_Shipping_Prep_Complete__c"] else "待ち")
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            # Exportar Excel
-            output = BytesIO()
-            df.to_excel(output, index=False, engine="openpyxl")
-            st.download_button("📥 Excel ダウンロード",
-                               data=output.getvalue(),
-                               file_name="shipments.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        else:
-            st.warning("データがありません。")
-
-    except Exception as e:
-        st.error(f"エラー: {e}")
+            cols[1].write(r["snps_um__SalesOrder__r"]["Name"])
+            cols[2].write(r["snps_um__Note__c"])
+            cols[3].write(r["snps_um__Item__r"]["Name"])
+            cols[4].write(int(r["snps_um__Quantity__c"]))
+            cols[5].write(r["snps_um__SalesOrder__r"]["snps_um__BillCust__r"]["Name"])
+            cols[6].write(r["snps_um__DeliveryPeriod__c"])
