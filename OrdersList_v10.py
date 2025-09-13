@@ -2,6 +2,8 @@
 import requests
 import streamlit as st
 from datetime import date
+import textwrap
+from html import escape
 
 # =========================================
 # Conectar ao Salesforce
@@ -162,7 +164,7 @@ if "dados" in st.session_state:
     dados = st.session_state["dados"]
     mostrar_todos = st.session_state["mostrar_todos"]
 
-    html = """
+    html = textwrap.dedent("""
     <table>
       <thead>
         <tr>
@@ -176,7 +178,7 @@ if "dados" in st.session_state:
         </tr>
       </thead>
       <tbody>
-    """
+    """)
 
     for r in dados:
         completo = r.get("AITC_Shipping_Prep_Complete__c", False)
@@ -190,14 +192,15 @@ if "dados" in st.session_state:
         html += f"""
         <tr class='{row_class}'>
           <td>{check_html}</td>
-          <td>{r["snps_um__SalesOrder__r"]["Name"]}</td>
-          <td>{r["snps_um__Note__c"]}</td>
-          <td>{r["snps_um__Item__r"]["Name"]}</td>
+          <td>{escape(r["snps_um__SalesOrder__r"]["Name"])}</td>
+          <td>{escape(r["snps_um__Note__c"] or "")}</td>
+          <td>{escape(r["snps_um__Item__r"]["Name"])}</td>
           <td style="text-align:right;">{int(r["snps_um__Quantity__c"])}</td>
-          <td>{r["snps_um__SalesOrder__r"]["snps_um__BillCust__r"]["Name"]}</td>
-          <td>{r["snps_um__DeliveryPeriod__c"]}</td>
+          <td>{escape(r["snps_um__SalesOrder__r"]["snps_um__BillCust__r"]["Name"])}</td>
+          <td>{escape(r["snps_um__DeliveryPeriod__c"])}</td>
         </tr>
         """
 
     html += "</tbody></table>"
+
     st.markdown(html, unsafe_allow_html=True)
