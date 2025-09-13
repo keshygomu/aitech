@@ -1,77 +1,31 @@
-import streamlit as st
+# -*- coding: utf-8 -*-
 import requests
-import pandas as pd
-from collections import defaultdict
+import streamlit as st
+from datetime import date
 
-# ==============================
-# Conexão Salesforce
-# ==============================
+# =========================================
+# Conectar ao Salesforce
+# =========================================
 def connect_salesforce():
-    login_url = "https://login.salesforce.com/services/oauth2/token"
+    url = f"{st.secrets['salesforce']['DOMAIN']}/services/oauth2/token"
     data = {
         "grant_type": "password",
         "client_id": st.secrets["salesforce"]["CLIENT_ID"],
         "client_secret": st.secrets["salesforce"]["CLIENT_SECRET"],
         "username": st.secrets["salesforce"]["USERNAME"],
-        "password": st.secrets["salesforce"]["PASSWORD"]
+        "password": st.secrets["salesforce"]["PASSWORD"],
     }
-    resp = requests.post(login_url, data=data)
+    resp = requests.post(url, data=data)
     resp.raise_for_status()
-    return resp.json()
+    return resp.json()["access_token"], resp.json()["instance_url"]
 
-def query_salesforce(query, token, instance_url):
-    url = f"{instance_url}/services/data/v58.0/query/"
-    headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(url, headers=headers, params={"q": query})
-    resp.raise_for_status()
-    return resp.json()
-
-def update_salesforce(record_id, token, instance_url):
-    url = f"{instance_url}/services/data/v58.0/sobjects/snps_um__SalesOrderDetail__c/{record_id}"
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    resp = requests.patch(url, headers=headers, json={"AITC_Shipping_Prep_Complete__c": True})
-    return resp.status_code == 204
-
-# ==============================
-# Estilo CSS
-# ==============================
-st.markdown("""
-<style>
-/* Compactar linhas */
-table, th, td {
-  padding: 3px 6px !important;
-  font-size: 13px !important;
-}
-
-/* Estilo das linhas completas */
-tr.completo td {
-  background-color: #121212 !important;
-  color: #ff80ab !important;
-  font-weight: bold;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ==============================
-# Título
-# ==============================
-st.title("出荷計画")
-
-# ==============================
-# Filtros
-# ==============================
-with st.form("filtro_datas"):
-    data_inicio = st.date_input("開始日")
-    data_fim = st.date_input("終了日")
-    mostrar_todos = st.checkbox("すべて表示", value=False)
-    buscar = st.form_submit_button("検索")
-
-if buscar:
-    auth = connect_salesforce()
-    token = auth["access_token"]
-    instance_url = auth["instance_url"]
-
-    filtro_status = "" if mostrar_todos else "AND AITC_Shipping_Prep_Complete__c = False"
+# =========================================
+# Query Salesforce
+# =========================================
+def query_salesforce(token, instance_url, data_inicio, data_fim, mostrar_todos):
+    filtro_status = ""
+    if not mostrar_todos:
+        filtro_status = "AND AITC_Shipping_Prep_Complete__c = False"
 
     query = f"""
         SELECT Id,
@@ -91,48 +45,143 @@ if buscar:
         ORDER BY snps_um__ShipPlanDate__c, snps_um__Note__c
     """
 
-    results = query_salesforce(query, token, instance_url)
-    st.session_state["dados"] = results["records"]
-    st.session_state["token"] = token
-    st.session_state["instance_url"] = instance_url
+    url = f"{instance_url}/services/data/v57.0/query"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, headers=headers, params={"q": query})
+    resp.raise_for_status()
+    return resp.json()["records"]
+
+# =========================================
+# Atualizar status no Salesforce
+# =========================================
+def update_salesforce(record_id, token, instance_url):
+    url = f"{instance_url}/services/data/v57.0/sobjects/snps_um__SalesOrderDetail__c/{record_id}"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    data = {"AITC_Shipping_Prep_Complete__c": True}
+    resp = requests.patch(url, headers=headers, json=data)
+    return resp.status_code == 204
+
+# =========================================
+# Estilo CSS
+# =========================================
+st.markdown("""
+<style>
+body {
+  background-color: #121212;
+  color: #e0e0e0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+th, td {
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+  text-align: left;
+  border-bottom: 1px solid #333;
+}
+tr:hover td {
+  background-color: #1e1e1e;
+}
+tr.completo td {
+  background-color: #121212 !important;
+  color: #ff80ab !important;
+  font-weight: bold;
+}
+th {
+  background-color: #2c2c2c;
+  color: #00e5ff;
+}
+button, .stButton>button {
+  background-color: #00e676;
+  color: black;
+  border-radius: 5px;
+  padding: 4px 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================
+# App Streamlit
+# =========================================
+st.title("📦 出荷計画リスト")
+
+if "token" not in st.session_state:
+    st.session_state["token"], st.session_state["instance_url"] = connect_salesforce()
+
+with st.form("filtro"):
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        data_inicio = st.date_input("開始日", value=date.today())
+    with col2:
+        data_fim = st.date_input("終了日", value=date.today())
+    with col3:
+        mostrar_todos = st.checkbox("すべて表示", value=False)
+
+    buscar = st.form_submit_button("検索")
+
+if buscar:
+    dados = query_salesforce(
+        st.session_state["token"],
+        st.session_state["instance_url"],
+        data_inicio,
+        data_fim,
+        mostrar_todos,
+    )
+    st.session_state["dados"] = dados
     st.session_state["mostrar_todos"] = mostrar_todos
 
-# ==============================
-# Mostrar resultados
-# ==============================
+# =========================================
+# Renderizar tabela
+# =========================================
 if "dados" in st.session_state:
     dados = st.session_state["dados"]
     mostrar_todos = st.session_state["mostrar_todos"]
 
-    grupos = defaultdict(list)
+    html = """
+    <table>
+      <thead>
+        <tr>
+          <th>完了</th>
+          <th>受注番号</th>
+          <th>備考</th>
+          <th>品目</th>
+          <th>数量</th>
+          <th>顧客</th>
+          <th>納期</th>
+        </tr>
+      </thead>
+      <tbody>
+    """
+
     for r in dados:
-        grupos[r["snps_um__ShipPlanDate__c"]].append(r)
+        completo = r.get("AITC_Shipping_Prep_Complete__c", False)
+        row_class = "completo" if (completo and mostrar_todos) else ""
 
-    for data, registros in grupos.items():
-        st.markdown(f"### 📅 {data}")
-        df_display = []
+        html += f"<tr class='{row_class}'><td>"
 
-        for r in registros:
-            completo = r.get("AITC_Shipping_Prep_Complete__c", False)
-            row_style = "completo" if (completo and mostrar_todos) else ""
+        if not completo:
+            if st.button("✅", key=r["Id"]):
+                ok = update_salesforce(r["Id"], st.session_state["token"], st.session_state["instance_url"])
+                if ok:
+                    r["AITC_Shipping_Prep_Complete__c"] = True
+                    if not mostrar_todos:
+                        st.session_state["dados"] = [x for x in st.session_state["dados"] if x["Id"] != r["Id"]]
+                    st.rerun()
+        else:
+            html += "✔️"
 
-            cols = st.columns([1, 2, 2, 2, 1, 2, 2, 1])
-            with cols[0]:
-                if not completo:
-                    if st.button("✅ 完了", key=r["Id"]):
-                        ok = update_salesforce(r["Id"], st.session_state["token"], st.session_state["instance_url"])
-                        if ok:
-                            r["AITC_Shipping_Prep_Complete__c"] = True
-                            if not mostrar_todos:
-                                # Remove da lista
-                                st.session_state["dados"] = [x for x in st.session_state["dados"] if x["Id"] != r["Id"]]
-                            st.rerun()
-                else:
-                    st.write("✔️")
+        html += f"""
+          </td>
+          <td>{r["snps_um__SalesOrder__r"]["Name"]}</td>
+          <td>{r["snps_um__Note__c"]}</td>
+          <td>{r["snps_um__Item__r"]["Name"]}</td>
+          <td style="text-align:right;">{int(r["snps_um__Quantity__c"])}</td>
+          <td>{r["snps_um__SalesOrder__r"]["snps_um__BillCust__r"]["Name"]}</td>
+          <td>{r["snps_um__DeliveryPeriod__c"]}</td>
+        </tr>
+        """
 
-            cols[1].write(r["snps_um__SalesOrder__r"]["Name"])
-            cols[2].write(r["snps_um__Note__c"])
-            cols[3].write(r["snps_um__Item__r"]["Name"])
-            cols[4].write(int(r["snps_um__Quantity__c"]))
-            cols[5].write(r["snps_um__SalesOrder__r"]["snps_um__BillCust__r"]["Name"])
-            cols[6].write(r["snps_um__DeliveryPeriod__c"])
+    html += "</tbody></table>"
+    st.markdown(html, unsafe_allow_html=True)
