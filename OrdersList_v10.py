@@ -126,7 +126,7 @@ if "dados" in st.session_state:
                             if not mostrar_todos:
                                 # Remove da lista
                                 st.session_state["dados"] = [x for x in st.session_state["dados"] if x["Id"] != r["Id"]]
-                            st.experimental_rerun()
+                            st.rerun()
                 else:
                     st.write("✔️")
 
