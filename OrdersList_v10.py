@@ -87,76 +87,91 @@ if st.button("検索"):
 
         dados = query_salesforce(token, instance_url, soql)
 
-        # ========================
-        # 🎨 Estilo CSS
-        # ========================
-        st.markdown("""
-        <style>
-        .completo {
-            background-color: #000000 !important;
-            color: #ff80ab !important;
-            font-weight: bold;
-        }
-        .right {
-            text-align: right;
-        }
-        .stCheckbox {
-            transform: scale(1.2);
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # ========================
-        # 📊 Agrupar por data
-        # ========================
-        grupos = defaultdict(list)
-        for r in dados:
-            data = r.get("snps_um__ShipPlanDate__c")
-            grupos[data].append(r)
-
-        # ========================
-        # 📝 Renderizar tabelas
-        # ========================
-        for data, registros in sorted(grupos.items()):
-            st.markdown(f"<h3 style='color:#ff9100;'>{html.escape(data)}</h3>", unsafe_allow_html=True)
-
-            for r in registros:
-                record_id = r["Id"]
-                completo = r.get("AITC_Shipping_Prep_Complete__c", False)
-
-                # Colunas da linha
-                cols = st.columns([1,2,2,2,1,2,2])
-                with cols[0]:
-                    novo_status = st.checkbox("完了", value=completo, key=f"chk_{record_id}")
-                with cols[1]:
-                    st.write(r['snps_um__SalesOrder__r']['Name'])
-                with cols[2]:
-                    st.write(r.get('snps_um__Note__c',''))
-                with cols[3]:
-                    st.write(r['snps_um__Item__r']['Name'])
-                with cols[4]:
-                    st.write(int(r['snps_um__Quantity__c']))
-                with cols[5]:
-                    st.write(r['snps_um__SalesOrder__r']['snps_um__BillCust__r']['Name'])
-                with cols[6]:
-                    st.write(r['snps_um__DeliveryPeriod__c'])
-
-                # Se o usuário mudar o estado do checkbox
-                if novo_status != completo:
-                    st.warning("⚠️ 確認: この注文を更新しますか？")
-                    c1, c2 = st.columns([1,1])
-                    with c1:
-                        if st.button("はい", key=f"yes_{record_id}"):
-                            sucesso = update_salesforce(token, instance_url, record_id, novo_status)
-                            if sucesso:
-                                st.success("✅ 更新しました")
-                                st.rerun()
-                            else:
-                                st.error("❌ 更新失敗しました")
-                    with c2:
-                        if st.button("いいえ", key=f"no_{record_id}"):
-                            st.session_state[f"chk_{record_id}"] = completo
-                            st.info("キャンセルしました")
+        # salvar no session_state
+        st.session_state["dados"] = dados
+        st.session_state["token"] = token
+        st.session_state["instance_url"] = instance_url
 
     except Exception as e:
         st.error(f"⚠️ エラー: {e}")
+
+# ========================
+# 📊 Renderizar resultados
+# ========================
+if "dados" in st.session_state:
+    dados = st.session_state["dados"]
+    token = st.session_state["token"]
+    instance_url = st.session_state["instance_url"]
+
+    # 🎨 Estilo CSS
+    st.markdown("""
+    <style>
+    .completo {
+        background-color: #000000 !important;
+        color: #ff80ab !important;
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    grupos = defaultdict(list)
+    for r in dados:
+        data = r.get("snps_um__ShipPlanDate__c")
+        grupos[data].append(r)
+
+    for data, registros in sorted(grupos.items()):
+        st.markdown(f"<h3 style='color:#ff9100;'>{html.escape(data)}</h3>", unsafe_allow_html=True)
+
+        # Cabeçalho da tabela
+        cols = st.columns([1,2,2,2,1,2,2])
+        cols[0].markdown("**完了**")
+        cols[1].markdown("**受注番号**")
+        cols[2].markdown("**備考**")
+        cols[3].markdown("**品目**")
+        cols[4].markdown("**数量**")
+        cols[5].markdown("**顧客**")
+        cols[6].markdown("**納期**")
+
+        for r in registros:
+            record_id = r["Id"]
+            completo = r.get("AITC_Shipping_Prep_Complete__c", False)
+
+            # Linha de dados
+            cols = st.columns([1,2,2,2,1,2,2])
+            with cols[0]:
+                novo_status = st.checkbox(" ", value=completo, key=f"chk_{record_id}")
+            with cols[1]:
+                st.write(r['snps_um__SalesOrder__r']['Name'])
+            with cols[2]:
+                st.write(r.get('snps_um__Note__c',''))
+            with cols[3]:
+                st.write(r['snps_um__Item__r']['Name'])
+            with cols[4]:
+                st.markdown(
+                    f"<span style='font-size:16px; color:#fff;'>{int(r['snps_um__Quantity__c'])}</span>",
+                    unsafe_allow_html=True
+                )
+            with cols[5]:
+                st.write(r['snps_um__SalesOrder__r']['snps_um__BillCust__r']['Name'])
+            with cols[6]:
+                st.write(r['snps_um__DeliveryPeriod__c'])
+
+            # Confirmação quando o checkbox mudar
+            if novo_status != completo:
+                st.warning("⚠️ 確認: この注文を更新しますか？")
+                c1, c2 = st.columns([1,1])
+                with c1:
+                    if st.button("はい", key=f"yes_{record_id}"):
+                        sucesso = update_salesforce(token, instance_url, record_id, novo_status)
+                        if sucesso:
+                            st.success("✅ 更新しました")
+                            # atualizar em memória
+                            r["AITC_Shipping_Prep_Complete__c"] = novo_status
+                            st.rerun()
+                        else:
+                            st.error("❌ 更新失敗しました")
+                with c2:
+                    if st.button("いいえ", key=f"no_{record_id}"):
+                        # restaurar estado
+                        st.session_state[f"chk_{record_id}"] = completo
+                        st.info("キャンセルしました")
