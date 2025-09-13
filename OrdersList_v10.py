@@ -93,14 +93,37 @@ th {
   background-color: #2c2c2c;
   color: #00e5ff;
 }
-button, .stButton>button {
+input[type=submit] {
   background-color: #00e676;
-  color: black;
-  border-radius: 5px;
-  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+input[type=submit]:hover {
+  background-color: #00c853;
 }
 </style>
 """, unsafe_allow_html=True)
+
+# =========================================
+# Captura update via query param
+# =========================================
+params = st.query_params
+if "update" in params:
+    record_id = params["update"]
+    if "token" in st.session_state:
+        ok = update_salesforce(record_id, st.session_state["token"], st.session_state["instance_url"])
+        if ok:
+            # Atualiza estado local
+            for rec in st.session_state.get("dados", []):
+                if rec["Id"] == record_id:
+                    rec["AITC_Shipping_Prep_Complete__c"] = True
+            # Se não for mostrar todos, remove da lista
+            if not st.session_state.get("mostrar_todos", False):
+                st.session_state["dados"] = [x for x in st.session_state["dados"] if x["Id"] != record_id]
+        st.rerun()
 
 # =========================================
 # App Streamlit
@@ -133,7 +156,7 @@ if buscar:
     st.session_state["mostrar_todos"] = mostrar_todos
 
 # =========================================
-# Renderizar tabela
+# Renderizar tabela em HTML
 # =========================================
 if "dados" in st.session_state:
     dados = st.session_state["dados"]
@@ -159,21 +182,14 @@ if "dados" in st.session_state:
         completo = r.get("AITC_Shipping_Prep_Complete__c", False)
         row_class = "completo" if (completo and mostrar_todos) else ""
 
-        html += f"<tr class='{row_class}'><td>"
-
         if not completo:
-            if st.button("✅", key=r["Id"]):
-                ok = update_salesforce(r["Id"], st.session_state["token"], st.session_state["instance_url"])
-                if ok:
-                    r["AITC_Shipping_Prep_Complete__c"] = True
-                    if not mostrar_todos:
-                        st.session_state["dados"] = [x for x in st.session_state["dados"] if x["Id"] != r["Id"]]
-                    st.rerun()
+            check_html = f"<form method='get'><input type='hidden' name='update' value='{r['Id']}'><input type='submit' value='✅'></form>"
         else:
-            html += "✔️"
+            check_html = "✔️"
 
         html += f"""
-          </td>
+        <tr class='{row_class}'>
+          <td>{check_html}</td>
           <td>{r["snps_um__SalesOrder__r"]["Name"]}</td>
           <td>{r["snps_um__Note__c"]}</td>
           <td>{r["snps_um__Item__r"]["Name"]}</td>
