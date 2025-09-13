@@ -118,11 +118,9 @@ if "update" in params:
     if "token" in st.session_state:
         ok = update_salesforce(record_id, st.session_state["token"], st.session_state["instance_url"])
         if ok:
-            # Atualiza estado local
             for rec in st.session_state.get("dados", []):
                 if rec["Id"] == record_id:
                     rec["AITC_Shipping_Prep_Complete__c"] = True
-            # Se não for mostrar todos, remove da lista
             if not st.session_state.get("mostrar_todos", False):
                 st.session_state["dados"] = [x for x in st.session_state["dados"] if x["Id"] != record_id]
         st.rerun()
@@ -143,7 +141,6 @@ with st.form("filtro"):
         data_fim = st.date_input("終了日", value=date.today())
     with col3:
         mostrar_todos = st.checkbox("すべて表示", value=False)
-
     buscar = st.form_submit_button("検索")
 
 if buscar:
@@ -203,4 +200,5 @@ if "dados" in st.session_state:
 
     html += "</tbody></table>"
 
+    # 🔑 Aqui é o ponto crítico: renderiza HTML, não texto
     st.markdown(html, unsafe_allow_html=True)
