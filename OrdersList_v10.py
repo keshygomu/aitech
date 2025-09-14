@@ -111,6 +111,15 @@ if "dados" in st.session_state:
         color: #ff80ab !important;
         font-weight: bold;
     }
+    /* reduzir espaçamento vertical */
+    div[data-testid="stCheckbox"] {
+        margin-top: -8px;
+        margin-bottom: -8px;
+    }
+    div[data-testid="stVerticalBlock"] {
+        padding-top: 0rem;
+        padding-bottom: 0rem;
+    }
     </style>
     """, unsafe_allow_html=True)
 
