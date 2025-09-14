@@ -147,21 +147,20 @@ if "dados" in st.session_state:
         )
 
         # Cabeçalho da tabela
-        cols = st.columns([0.5,1,2,2,1,3,1])
+        cols = st.columns([0.5,1,2,1,3,1])
         cols[0].markdown("**完了**")
         cols[1].markdown("**受注番号**")
-        cols[2].markdown("**備考**")
-        cols[3].markdown("**品目**")
-        cols[4].markdown("**数量**")
-        cols[5].markdown("**顧客**")
-        cols[6].markdown("**納期**")
+        cols[2].markdown("**品目**")
+        cols[3].markdown("**数量**")
+        cols[4].markdown("**顧客**")
+        cols[5].markdown("**納期**")
 
         for r in registros:
             record_id = r["Id"]
             completo = r.get("AITC_Shipping_Prep_Complete__c", False)
 
             # Linha de dados
-            cols = st.columns([0.5,1,2,2,1,3,1])
+            cols = st.columns([0.5,1,2,1,3,1])
             with cols[0]:
                 novo_status = st.checkbox(" ", value=completo, key=f"chk_{record_id}")
             with cols[1]:
@@ -169,15 +168,13 @@ if "dados" in st.session_state:
             with cols[2]:
                 st.write(r.get('snps_um__Note__c',''))
             with cols[3]:
-                st.write(r['snps_um__Item__r']['Name'])
-            with cols[4]:
                 st.markdown(
                     f"<span style='font-size:16px; color:#fff;'>{int(r['snps_um__Quantity__c'])}</span>",
                     unsafe_allow_html=True
                 )
-            with cols[5]:
+            with cols[4]:
                 st.write(r['snps_um__SalesOrder__r']['snps_um__BillCust__r']['Name'])
-            with cols[6]:
+            with cols[5]:
                 st.write(r['snps_um__DeliveryPeriod__c'])
 
             # Confirmação quando o checkbox mudar
