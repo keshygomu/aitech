@@ -1,10 +1,12 @@
 import streamlit as st
 import requests
 import datetime
+import html
+from collections import defaultdict
 
-# ==================================================
-# Função para conectar ao Salesforce
-# ==================================================
+# ========================
+# 🔑 Conexão Salesforce
+# ========================
 def connect_salesforce():
     auth_url = st.secrets["salesforce"]["DOMAIN"] + "/services/oauth2/token"
     data = {
@@ -14,66 +16,36 @@ def connect_salesforce():
         "username": st.secrets["salesforce"]["USERNAME"],
         "password": st.secrets["salesforce"]["PASSWORD"],
     }
-    res = requests.post(auth_url, data=data)
-    res.raise_for_status()
-    return res.json()
+    resp = requests.post(auth_url, data=data)
+    resp.raise_for_status()
+    return resp.json()
 
-# ==================================================
-# Função para rodar query SOQL
-# ==================================================
-def run_query(token, instance_url, soql):
+def query_salesforce(token, instance_url, soql):
+    url = f"{instance_url}/services/data/v57.0/query"
     headers = {"Authorization": f"Bearer {token}"}
-    res = requests.get(instance_url + "/services/data/v58.0/query",
-                       headers=headers, params={"q": soql})
-    res.raise_for_status()
-    return res.json()["records"]
+    resp = requests.get(url, headers=headers, params={"q": soql})
+    resp.raise_for_status()
+    return resp.json()["records"]
 
-# ==================================================
-# Função para atualizar status no Salesforce
-# ==================================================
-def atualizar_status_salesforce(record_id, status):
-    try:
-        access_token = st.session_state.sf_token
-        instance_url = st.session_state.sf_instance
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
-        url = f"{instance_url}/services/data/v58.0/sobjects/snps_um__SalesOrderDetail__c/{record_id}"
-        res = requests.patch(url, headers=headers, json={"AITC_Shipping_Prep_Complete__c": status})
-        return res.status_code == 204
-    except Exception as e:
-        st.error(f"Erro ao atualizar registro {record_id}: {e}")
-        return False
+def update_salesforce(token, instance_url, record_id, value: bool):
+    url = f"{instance_url}/services/data/v57.0/sobjects/snps_um__SalesOrderDetail__c/{record_id}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    data = {"AITC_Shipping_Prep_Complete__c": value}
+    resp = requests.patch(url, headers=headers, json=data)
+    return resp.status_code == 204
 
-# ==================================================
-# CSS customizado
-# ==================================================
-st.markdown("""
-<style>
-.completo {
-    background-color: #000000 !important;
-    color: #ff80ab !important;
-    font-weight: bold;
-    padding: 0.2rem 0;
-}
-div[data-testid="stCheckbox"] {
-    display: flex;
-    align-items: center;
-    margin-top: 0px;
-    margin-bottom: 0px;
-}
-</style>
-""", unsafe_allow_html=True)
+# ========================
+# ⚙️ Configuração página
+# ========================
+st.set_page_config(page_title="出荷計画リスト", layout="wide")
+st.title("📦 出荷計画リスト")
 
-# ==================================================
-# Título
-# ==================================================
-st.markdown("## 📦 出荷計画リスト")
-
-# ==================================================
-# Formulário de filtro
-# ==================================================
+# ========================
+# 📅 Filtros
+# ========================
 col1, col2, col3 = st.columns([1,1,1])
 with col1:
     data_inicio = st.date_input("開始日", datetime.date.today())
@@ -82,72 +54,138 @@ with col2:
 with col3:
     mostrar_todos = st.checkbox("すべて表示", value=False)
 
+# ========================
+# 🔎 Executar consulta
+# ========================
 if st.button("検索"):
-    # autentica se necessário
-    if "sf_token" not in st.session_state:
+    try:
         auth = connect_salesforce()
-        st.session_state.sf_token = auth["access_token"]
-        st.session_state.sf_instance = auth["instance_url"]
+        token = auth["access_token"]
+        instance_url = auth["instance_url"]
 
-    filtro_status = "" if mostrar_todos else "AND AITC_Shipping_Prep_Complete__c = False"
+        filtro_status = ""
+        if not mostrar_todos:
+            filtro_status = "AND AITC_Shipping_Prep_Complete__c = False"
 
-    query = f"""
-        SELECT Id,
-               snps_um__ShipPlanDate__c,
-               snps_um__SalesOrder__r.Name,
-               snps_um__Note__c,
-               snps_um__Item__r.Name,
-               snps_um__Quantity__c,
-               snps_um__SalesOrder__r.snps_um__BillCust__r.Name,
-               snps_um__DeliveryPeriod__c,
-               AITC_Shipping_Prep_Complete__c
-        FROM snps_um__SalesOrderDetail__c
-        WHERE snps_um__SalesOrderRemainCloseFlg__c = False
-          AND snps_um__ShipPlanDate__c >= {data_inicio}
-          AND snps_um__ShipPlanDate__c <= {data_fim}
-          {filtro_status}
-        ORDER BY snps_um__ShipPlanDate__c, snps_um__Note__c
-    """
+        soql = f"""
+            SELECT Id,
+                   snps_um__ShipPlanDate__c,
+                   snps_um__SalesOrder__r.Name,
+                   snps_um__Note__c,
+                   snps_um__Item__r.Name,
+                   snps_um__Quantity__c,
+                   snps_um__SalesOrder__r.snps_um__BillCust__r.Name,
+                   snps_um__DeliveryPeriod__c,
+                   AITC_Shipping_Prep_Complete__c
+            FROM snps_um__SalesOrderDetail__c
+            WHERE snps_um__SalesOrderRemainCloseFlg__c = False
+              AND snps_um__ShipPlanDate__c >= {data_inicio}
+              AND snps_um__ShipPlanDate__c <= {data_fim}
+              {filtro_status}
+            ORDER BY snps_um__ShipPlanDate__c, snps_um__Note__c
+        """
 
-    dados = run_query(st.session_state.sf_token, st.session_state.sf_instance, query)
-    st.session_state["dados"] = dados
+        dados = query_salesforce(token, instance_url, soql)
 
-# ==================================================
-# Exibir resultados agrupados
-# ==================================================
-if "dados" in st.session_state and st.session_state["dados"]:
-    # agrupa por data
-    grupos = {}
-    for r in st.session_state["dados"]:
+        # salvar no session_state
+        st.session_state["dados"] = dados
+        st.session_state["token"] = token
+        st.session_state["instance_url"] = instance_url
+
+    except Exception as e:
+        st.error(f"⚠️ エラー: {e}")
+
+# ========================
+# 📊 Renderizar resultados
+# ========================
+if "dados" in st.session_state:
+    dados = st.session_state["dados"]
+    token = st.session_state["token"]
+    instance_url = st.session_state["instance_url"]
+
+    # 🎨 Estilo CSS
+    st.markdown("""
+    <style>
+    .completo {
+        background-color: #000000 !important;
+        color: #ff80ab !important;
+        font-weight: bold;
+    }
+    /* diminuir padding vertical das células */
+    [data-testid="stHorizontalBlock"] {
+        margin-top: -10px;
+        margin-bottom: -10px;
+    }
+    /* alinhar verticalmente os checkboxes */
+    div[data-testid="stCheckbox"] {
+        display: flex;
+        align-items: center;
+        padding-top: 0px;
+        padding-bottom: 0px;
+        margin-top: -10px;
+        margin-bottom: -10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    grupos = defaultdict(list)
+    for r in dados:
         data = r.get("snps_um__ShipPlanDate__c")
-        if data not in grupos:
-            grupos[data] = []
         grupos[data].append(r)
 
-    for data in sorted(grupos.keys()):
-        st.markdown(f"### <span style='color:orange'>{data}</span>", unsafe_allow_html=True)
+    for data, registros in sorted(grupos.items()):
+        st.markdown(f"<h3 style='color:#ff9100;'>{html.escape(data)}</h3>", unsafe_allow_html=True)
 
-        for r in grupos[data]:
-            container = st.container()
-            if r["AITC_Shipping_Prep_Complete__c"]:
-                container.markdown("<div class='completo'>", unsafe_allow_html=True)
-            else:
-                container.markdown("<div>", unsafe_allow_html=True)
+        # Cabeçalho da tabela
+        cols = st.columns([1,2,2,2,1,2,2])
+        cols[0].markdown("**完了**")
+        cols[1].markdown("**受注番号**")
+        cols[2].markdown("**備考**")
+        cols[3].markdown("**品目**")
+        cols[4].markdown("**数量**")
+        cols[5].markdown("**顧客**")
+        cols[6].markdown("**納期**")
 
-            with container:
-                cols = st.columns([1,2,2,2,1,2,2])
-                marcado = cols[0].checkbox(" ", value=r["AITC_Shipping_Prep_Complete__c"], key=r["Id"])
-                if marcado != r["AITC_Shipping_Prep_Complete__c"]:
-                    sucesso = atualizar_status_salesforce(r["Id"], marcado)
-                    if sucesso:
-                        r["AITC_Shipping_Prep_Complete__c"] = marcado
-                        st.rerun()
+        for r in registros:
+            record_id = r["Id"]
+            completo = r.get("AITC_Shipping_Prep_Complete__c", False)
 
-                cols[1].write(r["snps_um__SalesOrder__r"]["Name"])
-                cols[2].write(r["snps_um__Note__c"])
-                cols[3].write(r["snps_um__Item__r"]["Name"])
-                cols[4].markdown(f"<div style='text-align:right; font-size:1.1rem;'>{int(r['snps_um__Quantity__c'])}</div>", unsafe_allow_html=True)
-                cols[5].write(r["snps_um__SalesOrder__r"]["snps_um__BillCust__r"]["Name"])
-                cols[6].write(r["snps_um__DeliveryPeriod__c"])
+            # Linha de dados
+            cols = st.columns([1,2,2,2,1,2,2])
+            with cols[0]:
+                novo_status = st.checkbox(" ", value=completo, key=f"chk_{record_id}")
+            with cols[1]:
+                st.write(r['snps_um__SalesOrder__r']['Name'])
+            with cols[2]:
+                st.write(r.get('snps_um__Note__c',''))
+            with cols[3]:
+                st.write(r['snps_um__Item__r']['Name'])
+            with cols[4]:
+                st.markdown(
+                    f"<span style='font-size:16px; color:#fff;'>{int(r['snps_um__Quantity__c'])}</span>",
+                    unsafe_allow_html=True
+                )
+            with cols[5]:
+                st.write(r['snps_um__SalesOrder__r']['snps_um__BillCust__r']['Name'])
+            with cols[6]:
+                st.write(r['snps_um__DeliveryPeriod__c'])
 
-            container.markdown("</div>", unsafe_allow_html=True)
+            # Confirmação quando o checkbox mudar
+            if novo_status != completo:
+                st.warning("⚠️ 確認: この注文を更新しますか？")
+                c1, c2 = st.columns([1,1])
+                with c1:
+                    if st.button("はい", key=f"yes_{record_id}"):
+                        sucesso = update_salesforce(token, instance_url, record_id, novo_status)
+                        if sucesso:
+                            st.success("✅ 更新しました")
+                            # atualizar em memória
+                            r["AITC_Shipping_Prep_Complete__c"] = novo_status
+                            st.rerun()
+                        else:
+                            st.error("❌ 更新失敗しました")
+                with c2:
+                    if st.button("いいえ", key=f"no_{record_id}"):
+                        # restaurar estado
+                        st.session_state[f"chk_{record_id}"] = completo
+                        st.info("キャンセルしました")
