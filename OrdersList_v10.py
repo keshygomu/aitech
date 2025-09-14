@@ -119,7 +119,7 @@ if "dados" in st.session_state:
     /* reduzir espaçamento vertical */
     div[data-testid="stCheckbox"] {
         margin-top: -10px;
-        margin-bottom: -10px;
+        margin-bottom: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
