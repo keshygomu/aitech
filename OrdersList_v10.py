@@ -134,7 +134,17 @@ if "dados" in st.session_state:
         grupos[data].append(r)
 
     for data, registros in sorted(grupos.items()):
-        st.markdown(f"<h3 style='color:#ff9100;'>{html.escape(data)}</h3>", unsafe_allow_html=True)
+        total = len(registros)
+        prontos = sum(1 for r in registros if r.get("AITC_Shipping_Prep_Complete__c", False))
+        espera = total - prontos
+
+        st.markdown(
+            f"<h3 style='color:#ff9100;'>{html.escape(data)} "
+            f"<span style='font-size:16px; color:#ffffff;'>"
+            f"📦 {total}件 | ✅ {prontos}件 | ⏳ {espera}件"
+            f"</span></h3>",
+            unsafe_allow_html=True
+        )
 
         # Cabeçalho da tabela
         cols = st.columns([1,2,2,2,1,2,2])
