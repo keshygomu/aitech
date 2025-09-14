@@ -161,7 +161,7 @@ if "dados" in st.session_state:
             completo = r.get("AITC_Shipping_Prep_Complete__c", False)
 
             # Linha de dados
-            cols = st.columns([1,2,2,2,1,2,2])
+            cols = st.columns([1,1,2,2,1,2,1])
             with cols[0]:
                 novo_status = st.checkbox(" ", value=completo, key=f"chk_{record_id}")
             with cols[1]:
