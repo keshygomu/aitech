@@ -111,6 +111,11 @@ if "dados" in st.session_state:
         color: #ff80ab !important;
         font-weight: bold;
     }
+    /* diminuir padding vertical das células */
+    [data-testid="stHorizontalBlock"] {
+        margin-top: -5px;
+        margin-bottom: -5px;
+    }
     /* reduzir espaçamento vertical */
     div[data-testid="stCheckbox"] {
         margin-top: -8px;
