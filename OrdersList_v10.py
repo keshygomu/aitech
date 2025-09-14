@@ -113,8 +113,8 @@ if "dados" in st.session_state:
     }
     /* diminuir padding vertical das células */
     [data-testid="stHorizontalBlock"] {
-        margin-top: -5px;
-        margin-bottom: -5px;
+        margin-top: -10px;
+        margin-bottom: -10px;
     }
     /* reduzir espaçamento vertical */
     div[data-testid="stCheckbox"] {
