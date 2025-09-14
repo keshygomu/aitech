@@ -147,7 +147,7 @@ if "dados" in st.session_state:
         )
 
         # Cabeçalho da tabela
-        cols = st.columns([1,1,2,2,1,2,1])
+        cols = st.columns([0.5,1,2,2,1,3,1])
         cols[0].markdown("**完了**")
         cols[1].markdown("**受注番号**")
         cols[2].markdown("**備考**")
@@ -161,7 +161,7 @@ if "dados" in st.session_state:
             completo = r.get("AITC_Shipping_Prep_Complete__c", False)
 
             # Linha de dados
-            cols = st.columns([1,1,2,2,1,2,1])
+            cols = st.columns([0.5,1,2,2,1,3,1])
             with cols[0]:
                 novo_status = st.checkbox(" ", value=completo, key=f"chk_{record_id}")
             with cols[1]:
