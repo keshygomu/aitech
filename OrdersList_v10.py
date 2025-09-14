@@ -122,8 +122,8 @@ if "dados" in st.session_state:
         align-items: center;
         padding-top: 0px;
         padding-bottom: 0px;
-        margin-top: 0px;
-        margin-bottom: 0px;
+        margin-top: -10px;
+        margin-bottom: -10px;
     }
     </style>
     """, unsafe_allow_html=True)
