@@ -82,7 +82,7 @@ if st.button("検索"):
               AND snps_um__ShipPlanDate__c >= {data_inicio}
               AND snps_um__ShipPlanDate__c <= {data_fim}
               {filtro_status}
-            ORDER BY snps_um__ShipPlanDate__c, snps_um__Note__c
+            ORDER BY snps_um__ShipPlanDate__c, snps_um__SalesOrder__r.Name, snps_um__Note__c
         """
 
         dados = query_salesforce(token, instance_url, soql)
