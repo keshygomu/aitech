@@ -1,6 +1,8 @@
 """
 在庫登録アプリ — Streamlit + Salesforce + Firebase
 Optimized: single SF auth per run, dept field added, form submit logic fixed.
+Updated: when today's record already exists, display the latest Firebase quantity
+instead of Salesforce actual quantity.
 """
 
 import os
@@ -76,7 +78,7 @@ def init_firebase():
 init_firebase()
 
 
-# ── Salesforce auth (cached per session) ──────────────────────────────────────
+# ── Salesforce auth (cached per session) ─────────────────────────────────────
 
 @st.cache_resource(ttl=3500)
 def get_sf_session():
@@ -116,7 +118,7 @@ def sf_query(soql: str) -> list:
         return []
 
 
-# ── Salesforce queries ────────────────────────────────────────────────────────
+# ── Salesforce queries ───────────────────────────────────────────────────────
 
 def fetch_work_orders(production_order: str, process_order: int | None = None) -> list:
     """
@@ -200,7 +202,7 @@ def extract_work_order_fields(record: dict) -> dict:
     }
 
 
-# ── Firebase helpers ──────────────────────────────────────────────────────────
+# ── Firebase helpers ─────────────────────────────────────────────────────────
 
 def firebase_ref(path: str = ""):
     root = inventory_key()
@@ -250,7 +252,43 @@ def firebase_append(record_key: str, new_data: dict):
     })
 
 
-# ── Session state init ────────────────────────────────────────────────────────
+def get_latest_firebase_quantity(record: dict | None) -> int:
+    """
+    Returns the latest quantity recorded in Firebase.
+    Priority:
+      highest quantityNN
+      fallback to quantity
+    """
+    if not record:
+        return 0
+
+    latest_idx = -1
+    latest_qty = None
+
+    for k, v in record.items():
+        if k == "quantity":
+            continue
+        if k.startswith("quantity"):
+            suffix = k.replace("quantity", "")
+            if suffix.isdigit():
+                idx = int(suffix)
+                if idx > latest_idx:
+                    latest_idx = idx
+                    latest_qty = v
+
+    if latest_qty is not None:
+        try:
+            return int(latest_qty or 0)
+        except Exception:
+            return 0
+
+    try:
+        return int(record.get("quantity", 0) or 0)
+    except Exception:
+        return 0
+
+
+# ── Session state init ───────────────────────────────────────────────────────
 
 def init_session():
     defaults = {
@@ -269,7 +307,7 @@ def init_session():
 
 init_session()
 
-# ── UI ────────────────────────────────────────────────────────────────────────
+# ── UI ───────────────────────────────────────────────────────────────────────
 
 st.image("aitech_logo_B.png", use_container_width=True)
 
@@ -349,8 +387,13 @@ if production_order and not st.session_state["registered"]:
             st.warning(f"材料情報の取得をスキップしました: {e}")
 
     # Check if a record already exists today
-    today_key, _ = find_record_for_today(production_order)
+    today_key, today_record = find_record_for_today(production_order)
     already_registered = today_key is not None
+
+    firebase_qty_today = (
+        get_latest_firebase_quantity(today_record) if already_registered else None
+    )
+    display_qty = firebase_qty_today if already_registered else fields["actual_qty"]
 
     # ── Action buttons OUTSIDE the form (avoids Streamlit ambiguity) ─────────
     st.subheader(f"在庫登録 — {production_order}")
@@ -362,12 +405,13 @@ if production_order and not st.session_state["registered"]:
             "登　録　済　み　！！</p>",
             unsafe_allow_html=True,
         )
+        st.info(f"本日のFirebase登録数量: {firebase_qty_today}")
 
-    # ── Form (data entry only, no submit ambiguity) ───────────────────────────
+    # ── Form (data entry only, no submit ambiguity) ──────────────────────────
     with st.form("form_inventory"):
         qty_input = st.number_input(
             "最後の完了工程の登録数",
-            value=fields["actual_qty"],
+            value=int(display_qty),
             step=1,
             key="qty_form",
         )
@@ -405,7 +449,7 @@ if production_order and not st.session_state["registered"]:
         submit_btn = st.form_submit_button("登録")
         correction_btn = st.form_submit_button("訂正") if already_registered else False
 
-    # ── Process submission ────────────────────────────────────────────────────
+    # ── Process submission ───────────────────────────────────────────────────
     action = None
     if submit_btn:
         action = "register"
