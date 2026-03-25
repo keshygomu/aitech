@@ -453,8 +453,6 @@ if production_order and not st.session_state["registered"]:
     action = None
     if submit_btn:
         action = "register"
-    elif correction_btn:
-        action = "correct"
 
     if action and fields["work_place"]:
         po_name = production_order + ("-1" if division_cb else "")
