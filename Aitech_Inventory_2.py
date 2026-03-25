@@ -477,15 +477,11 @@ if production_order and not st.session_state["registered"]:
         was_update = False
         existing_key, _ = find_record_for_today(po_name)
 
-        if action == "correct" and existing_key:
-            firebase_update(existing_key, data_to_save)
+        if existing_key:
+            firebase_append(existing_key, data_to_save)
             was_update = True
-        elif action == "register":
-            if existing_key:
-                firebase_append(existing_key, data_to_save)
-                was_update = True
-            else:
-                firebase_push(data_to_save)
+        else:
+            firebase_push(data_to_save)
 
         st.session_state.update({
             "registered": True,
