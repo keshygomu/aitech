@@ -447,7 +447,7 @@ if production_order and not st.session_state["registered"]:
             st.write(f"工程名: {fields['process_name']}")
 
         submit_btn = st.form_submit_button("登録")
-        correction_btn = st.form_submit_button("訂正") if already_registered else False
+        #correction_btn = st.form_submit_button("訂正") if already_registered else False
 
     # ── Process submission ───────────────────────────────────────────────────
     action = None
