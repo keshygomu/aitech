@@ -3,6 +3,7 @@
 Optimized: single SF auth per run, dept field added, form submit logic fixed.
 Updated: when today's record already exists, display the latest Firebase quantity
 instead of Salesforce actual quantity.
+Updated: also save snps_um__StockPlace__r.Name into Firebase.
 """
 
 import os
@@ -192,6 +193,7 @@ def extract_work_order_fields(record: dict) -> dict:
         "actual_qty": int(record.get("snps_um__ActualQt__c") or 0),
         "process_order_no": int(record.get("snps_um__ProcessOrderNo__c") or 0),
         "work_place": (record.get("snps_um__WorkPlace__r") or {}).get("Name", ""),
+        "stock_place": (record.get("snps_um__StockPlace__r") or {}).get("Name", ""),
         "cumulative_cost": float(
             (record.get("snps_um__Process__r") or {}).get("AITC_Acumulated_Price__c") or 0.0
         ),
@@ -332,6 +334,7 @@ if st.session_state["show_success"]:
         st.write(f"部門名: {d.get('dept_name', '')}")
     with col2:
         st.write(f"作業場所: {d.get('work_place', '')}")
+        st.write(f"在庫場所: {d.get('stock_place', '')}")
         st.write(f"報告数量: {d.get('quantity', 0)}")
         st.write(f"工程順序: {d.get('process_order', '')}")
 
@@ -434,6 +437,7 @@ if production_order and not st.session_state["registered"]:
                 else:
                     st.warning(f"工程順序 {process_order_input} に対応する記録が見つかりませんでした。")
                     fields["work_place"] = ""
+                    fields["stock_place"] = ""
                     fields["cumulative_cost"] = 0.0
                     fields["process_name"] = ""
                     fields["dept_name"] = ""
@@ -441,13 +445,13 @@ if production_order and not st.session_state["registered"]:
         col_a, col_b = st.columns(2)
         with col_a:
             st.write(f"作業場所: {fields['work_place']}")
+            st.write(f"在庫場所: {fields['stock_place']}")
             st.write(f"部門名: {fields['dept_name']}")
             division_cb = st.checkbox("分割")
         with col_b:
             st.write(f"工程名: {fields['process_name']}")
 
         submit_btn = st.form_submit_button("登録")
-        #correction_btn = st.form_submit_button("訂正") if already_registered else False
 
     # ── Process submission ───────────────────────────────────────────────────
     action = None
@@ -467,6 +471,7 @@ if production_order and not st.session_state["registered"]:
             "process_name": fields["process_name"],
             "process_order": int(process_order_input),
             "work_place": fields["work_place"],
+            "stock_place": fields["stock_place"],
             "dept_name": fields["dept_name"],
             "cumulative_cost": fields["cumulative_cost"],
             "material": mat_info.get("material", ""),
@@ -491,6 +496,7 @@ if production_order and not st.session_state["registered"]:
                 "production_order": po_name,
                 "product_code": fields["product_code"],
                 "work_place": fields["work_place"],
+                "stock_place": fields["stock_place"],
                 "process_name": fields["process_name"],
                 "dept_name": fields["dept_name"],
                 "quantity": int(qty_input),
