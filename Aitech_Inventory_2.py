@@ -13,7 +13,7 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, db
 from datetime import datetime
-from streamlit_qrcode_scanner import qrcode_scanner
+#from streamlit_qrcode_scanner import qrcode_scanner
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -311,6 +311,503 @@ init_session()
 
 # ── UI ───────────────────────────────────────────────────────────────────────
 
+
+
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QR SCANNER — Streamlit Components V2
+# Otimizado para iPhone / Safari
+# ─────────────────────────────────────────────────────────────────────────────
+
+QR_SCANNER_HTML = """
+<div class="qr-wrapper">
+
+    <div class="qr-title">
+        📷 移行票 QRコード
+    </div>
+
+    <div class="video-container">
+        <video id="qr-video" autoplay playsinline muted></video>
+
+        <div class="scan-frame">
+            <div class="corner tl"></div>
+            <div class="corner tr"></div>
+            <div class="corner bl"></div>
+            <div class="corner br"></div>
+            <div class="scan-line"></div>
+        </div>
+    </div>
+
+    <div id="qr-status" class="status">
+        カメラを起動しています...
+    </div>
+
+    <div class="button-row">
+        <button id="start-camera" type="button">
+            📷 カメラ開始
+        </button>
+
+        <button id="stop-camera" type="button">
+            ⏹ カメラ停止
+        </button>
+    </div>
+
+</div>
+"""
+
+
+QR_SCANNER_CSS = """
+.qr-wrapper {
+    width: 100%;
+    font-family: var(--st-font);
+}
+
+.qr-title {
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.video-container {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #000;
+}
+
+#qr-video {
+    display: block;
+    width: 100%;
+    max-height: 420px;
+    object-fit: cover;
+    background: #000;
+}
+
+.scan-frame {
+    position: absolute;
+    width: 68%;
+    aspect-ratio: 1 / 1;
+    max-height: 80%;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.corner {
+    position: absolute;
+    width: 34px;
+    height: 34px;
+    border-color: #00ff88;
+}
+
+.tl {
+    top: 0;
+    left: 0;
+    border-top: 4px solid #00ff88;
+    border-left: 4px solid #00ff88;
+}
+
+.tr {
+    top: 0;
+    right: 0;
+    border-top: 4px solid #00ff88;
+    border-right: 4px solid #00ff88;
+}
+
+.bl {
+    bottom: 0;
+    left: 0;
+    border-bottom: 4px solid #00ff88;
+    border-left: 4px solid #00ff88;
+}
+
+.br {
+    bottom: 0;
+    right: 0;
+    border-bottom: 4px solid #00ff88;
+    border-right: 4px solid #00ff88;
+}
+
+.scan-line {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background: #00ff88;
+    box-shadow: 0 0 8px #00ff88;
+    animation: scan 2s linear infinite;
+}
+
+@keyframes scan {
+    0% {
+        top: 0;
+    }
+
+    50% {
+        top: 100%;
+    }
+
+    100% {
+        top: 0;
+    }
+}
+
+.status {
+    margin-top: 8px;
+    padding: 8px;
+    text-align: center;
+    border-radius: 8px;
+    background: rgba(128,128,128,0.15);
+    font-size: 14px;
+}
+
+.button-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.button-row button {
+    flex: 1;
+    min-height: 44px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#start-camera {
+    background: #00875a;
+    color: white;
+}
+
+#stop-camera {
+    background: #555;
+    color: white;
+}
+"""
+
+
+QR_SCANNER_JS = """
+export default function(component) {
+
+    const {
+        parentElement,
+        setTriggerValue
+    } = component;
+
+    const video =
+        parentElement.querySelector("#qr-video");
+
+    const status =
+        parentElement.querySelector("#qr-status");
+
+    const startButton =
+        parentElement.querySelector("#start-camera");
+
+    const stopButton =
+        parentElement.querySelector("#stop-camera");
+
+
+    // ---------------------------------------------------------
+    // Preserve camera information on the DOM element itself.
+    //
+    // Components V2 can execute again after a Streamlit rerun.
+    // Keeping these variables attached to the video element
+    // prevents unnecessary camera recreation.
+    // ---------------------------------------------------------
+
+    if (video._qrRunning === undefined) {
+        video._qrRunning = false;
+    }
+
+    if (video._qrStream === undefined) {
+        video._qrStream = null;
+    }
+
+    if (video._qrTimer === undefined) {
+        video._qrTimer = null;
+    }
+
+    if (video._lastCode === undefined) {
+        video._lastCode = "";
+    }
+
+    if (video._lastTime === undefined) {
+        video._lastTime = 0;
+    }
+
+
+    function setStatus(message) {
+        status.textContent = message;
+    }
+
+
+    // ---------------------------------------------------------
+    // Stop camera
+    // ---------------------------------------------------------
+
+    function stopCamera() {
+
+        video._qrRunning = false;
+
+        if (video._qrTimer) {
+            clearTimeout(video._qrTimer);
+            video._qrTimer = null;
+        }
+
+        if (video._qrStream) {
+
+            video._qrStream
+                .getTracks()
+                .forEach(track => track.stop());
+
+            video._qrStream = null;
+        }
+
+        video.srcObject = null;
+
+        setStatus("カメラ停止中");
+    }
+
+
+    // ---------------------------------------------------------
+    // QR detection loop
+    // ---------------------------------------------------------
+
+    async function detectQR() {
+
+        if (!video._qrRunning) {
+            return;
+        }
+
+        try {
+
+            if (
+                typeof BarcodeDetector === "undefined"
+            ) {
+
+                setStatus(
+                    "このブラウザではQRコード読み取りAPIが利用できません。"
+                );
+
+                video._qrRunning = false;
+                return;
+            }
+
+
+            if (!video._barcodeDetector) {
+
+                video._barcodeDetector =
+                    new BarcodeDetector({
+                        formats: ["qr_code"]
+                    });
+            }
+
+
+            if (
+                video.readyState >= 2 &&
+                video.videoWidth > 0
+            ) {
+
+                const codes =
+                    await video._barcodeDetector.detect(video);
+
+
+                if (codes.length > 0) {
+
+                    const value =
+                        codes[0].rawValue.trim();
+
+                    const now = Date.now();
+
+
+                    // Prevent the same QR from being
+                    // transmitted repeatedly.
+                    if (
+                        value &&
+                        (
+                            value !== video._lastCode ||
+                            now - video._lastTime > 3000
+                        )
+                    ) {
+
+                        video._lastCode = value;
+                        video._lastTime = now;
+
+                        setStatus(
+                            "✓ 読み取り成功: " + value
+                        );
+
+
+                        // iPhone vibration when supported
+                        if (navigator.vibrate) {
+                            navigator.vibrate(100);
+                        }
+
+
+                        // Send QR to Python / Streamlit
+                        setTriggerValue(
+                            "qr_code",
+                            value
+                        );
+
+
+                        // Pause briefly after successful read
+                        video._qrTimer =
+                            setTimeout(
+                                detectQR,
+                                1500
+                            );
+
+                        return;
+                    }
+                }
+            }
+
+        } catch (error) {
+
+            console.log(
+                "QR detection:",
+                error
+            );
+        }
+
+
+        video._qrTimer =
+            setTimeout(
+                detectQR,
+                200
+            );
+    }
+
+
+    // ---------------------------------------------------------
+    // Start camera
+    // ---------------------------------------------------------
+
+    async function startCamera() {
+
+        if (video._qrRunning) {
+            return;
+        }
+
+
+        try {
+
+            setStatus(
+                "カメラを起動しています..."
+            );
+
+
+            const constraints = {
+
+                audio: false,
+
+                video: {
+
+                    facingMode: {
+                        ideal: "environment"
+                    },
+
+                    width: {
+                        ideal: 1280
+                    },
+
+                    height: {
+                        ideal: 720
+                    }
+                }
+            };
+
+
+            const stream =
+                await navigator.mediaDevices
+                    .getUserMedia(constraints);
+
+
+            video._qrStream = stream;
+
+            video.srcObject = stream;
+
+            await video.play();
+
+
+            video._qrRunning = true;
+
+
+            setStatus(
+                "QRコードを枠内に合わせてください"
+            );
+
+
+            detectQR();
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            video._qrRunning = false;
+
+
+            if (
+                error.name ===
+                "NotAllowedError"
+            ) {
+
+                setStatus(
+                    "カメラの使用が許可されていません。Safariの設定を確認してください。"
+                );
+
+            } else {
+
+                setStatus(
+                    "カメラを起動できません: " +
+                    error.message
+                );
+            }
+        }
+    }
+
+
+    startButton.onclick =
+        startCamera;
+
+    stopButton.onclick =
+        stopCamera;
+
+
+    // ---------------------------------------------------------
+    // Automatically start camera
+    // ---------------------------------------------------------
+
+    if (!video._qrRunning) {
+        startCamera();
+    }
+}
+"""
+
+
+qr_scanner_component = st.components.v2.component(
+    name="aitech_qr_scanner",
+    html=QR_SCANNER_HTML,
+    css=QR_SCANNER_CSS,
+    js=QR_SCANNER_JS,
+)
+
+
+
+
+
+
+
+
 st.image("aitech_logo_B.png", use_container_width=True)
 
 # Step 1 — operator code
@@ -348,21 +845,99 @@ if st.session_state["show_success"]:
     st.stop()
 
 # Step 3 — QR / manual input
-col1, col2 = st.columns(2)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 3 — QR / manual input
+# ─────────────────────────────────────────────────────────────────────────────
+
+col1, col2 = st.columns([1.3, 1])
+
 with col1:
-    qr_code = qrcode_scanner(key="qr_scanner")
+
+    qr_result = qr_scanner_component(
+        key="qr_scanner_v2",
+        on_qr_code_change=lambda: None,
+    )
+
+    qr_code = qr_result.qr_code
+
+
 with col2:
-    input_key = "manual_reset" if st.session_state["reset_form"] else "manual_normal"
-    input_manual = st.text_input("移行票番号を入力してください:", value="", key=input_key)
+
+    st.subheader("手動入力")
+
+    input_key = (
+        "manual_reset"
+        if st.session_state["reset_form"]
+        else "manual_normal"
+    )
+
+    input_manual = st.text_input(
+        "移行票番号を入力してください:",
+        value="",
+        key=input_key,
+    )
+
 
 production_order = ""
 is_split = False
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QR input
+# ─────────────────────────────────────────────────────────────────────────────
+
 if qr_code:
-    production_order = qr_code.strip()
+
+    scanned = str(qr_code).strip()
+
+    # QR already contains PO-
+    if scanned.upper().startswith("PO-"):
+
+        production_order = scanned.upper()
+
+    else:
+
+        # QR contains only the numeric part
+        numeric = "".join(
+            c for c in scanned
+            if c.isdigit()
+        )
+
+        if numeric:
+
+            production_order = (
+                f"PO-{numeric.zfill(6)}"
+            )
+
+        else:
+
+            production_order = scanned
+
+
     st.session_state["reset_form"] = False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Manual input
+# ─────────────────────────────────────────────────────────────────────────────
+
 elif input_manual:
-    production_order = f"PO-{str(input_manual.strip()).zfill(6)}"
+
+    manual = input_manual.strip()
+
+    if manual.upper().startswith("PO-"):
+
+        production_order = manual.upper()
+
+    else:
+
+        production_order = (
+            f"PO-{manual.zfill(6)}"
+        )
+
+
 
 # Step 4 — Main form
 if production_order and not st.session_state["registered"]:
