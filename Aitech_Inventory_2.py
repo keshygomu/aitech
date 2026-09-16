@@ -1472,7 +1472,7 @@ if production_order and not st.session_state["registered"]:
         action = "register"
 
     
-    if action and fields["work_place"]:
+if action and fields["work_place"]:
 
     # Número original lido pelo QR
     base_po_name = production_order
