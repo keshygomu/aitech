@@ -301,7 +301,11 @@ def init_session():
         "show_success": False,
         "success_data": {},
         "current_process_order": None,
+
+        # Mantém o PO entre os reruns do Streamlit
+        "production_order": "",
     }
+
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
@@ -1137,11 +1141,17 @@ if st.session_state["show_success"]:
         st.write(f"工程順序: {d.get('process_order', '')}")
 
     if st.button("新規登録", key="btn_new"):
-        for k in ("reset_form", "registered", "was_update", "show_success",
-                  "success_data", "current_process_order"):
-            st.session_state[k] = False if isinstance(st.session_state[k], bool) else (
-                None if k == "current_process_order" else {}
-            )
+    
+        st.session_state["reset_form"] = False
+        st.session_state["registered"] = False
+        st.session_state["was_update"] = False
+        st.session_state["show_success"] = False
+        st.session_state["success_data"] = {}
+        st.session_state["current_process_order"] = None
+    
+        # Libera o PO anterior para uma nova leitura
+        st.session_state["production_order"] = ""
+    
         st.rerun()
     st.stop()
 
@@ -1155,6 +1165,9 @@ if st.session_state["show_success"]:
 
 col1, col2 = st.columns([1.4, 1])
 
+
+# ── QR Scanner ────────────────────────────────────────────────────────────────
+
 with col1:
 
     qr_result = qr_scanner_component(
@@ -1164,6 +1177,8 @@ with col1:
 
     qr_code = qr_result.qr_code
 
+
+# ── Manual input ──────────────────────────────────────────────────────────────
 
 with col2:
 
@@ -1182,11 +1197,9 @@ with col2:
     )
 
 
-production_order = ""
-is_split = False
-
-
-# ── QR ────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# QR recebido
+# ─────────────────────────────────────────────────────────────────────────────
 
 if qr_code:
 
@@ -1194,7 +1207,7 @@ if qr_code:
 
     if scanned.upper().startswith("PO-"):
 
-        production_order = scanned.upper()
+        new_production_order = scanned.upper()
 
     else:
 
@@ -1205,18 +1218,25 @@ if qr_code:
 
         if numeric:
 
-            production_order = (
+            new_production_order = (
                 f"PO-{numeric.zfill(6)}"
             )
 
         else:
 
-            production_order = scanned
+            new_production_order = scanned
+
+
+    # IMPORTANTE:
+    # Guarda permanentemente durante a sessão.
+    st.session_state["production_order"] = new_production_order
 
     st.session_state["reset_form"] = False
 
 
-# ── Manual ────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Entrada manual
+# ─────────────────────────────────────────────────────────────────────────────
 
 elif input_manual:
 
@@ -1224,14 +1244,26 @@ elif input_manual:
 
     if manual.upper().startswith("PO-"):
 
-        production_order = manual.upper()
+        new_production_order = manual.upper()
 
     else:
 
-        production_order = (
+        new_production_order = (
             f"PO-{manual.zfill(6)}"
         )
 
+
+    # Também preserva entrada manual durante reruns
+    st.session_state["production_order"] = new_production_order
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Recupera sempre o PO salvo
+# ─────────────────────────────────────────────────────────────────────────────
+
+production_order = st.session_state["production_order"]
+
+is_split = False
 
 
 
