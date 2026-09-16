@@ -13,7 +13,7 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, db
 from datetime import datetime
-#from streamlit_qrcode_scanner import qrcode_scanner
+from streamlit_qrcode_scanner import qrcode_scanner
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -316,9 +316,11 @@ init_session()
 
 
 
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# QR SCANNER — Streamlit Components V2
-# Otimizado para iPhone / Safari
+# QR SCANNER — Streamlit Components V2 + ZXing
+# Compatível com iPhone / Safari
 # ─────────────────────────────────────────────────────────────────────────────
 
 QR_SCANNER_HTML = """
@@ -329,15 +331,23 @@ QR_SCANNER_HTML = """
     </div>
 
     <div class="video-container">
-        <video id="qr-video" autoplay playsinline muted></video>
+
+        <video
+            id="qr-video"
+            autoplay
+            muted
+            playsinline
+        ></video>
 
         <div class="scan-frame">
             <div class="corner tl"></div>
             <div class="corner tr"></div>
             <div class="corner bl"></div>
             <div class="corner br"></div>
+
             <div class="scan-line"></div>
         </div>
+
     </div>
 
     <div id="qr-status" class="status">
@@ -345,6 +355,7 @@ QR_SCANNER_HTML = """
     </div>
 
     <div class="button-row">
+
         <button id="start-camera" type="button">
             📷 カメラ開始
         </button>
@@ -352,6 +363,7 @@ QR_SCANNER_HTML = """
         <button id="stop-camera" type="button">
             ⏹ カメラ停止
         </button>
+
     </div>
 
 </div>
@@ -364,6 +376,11 @@ QR_SCANNER_CSS = """
     font-family: var(--st-font);
 }
 
+
+/* ─────────────────────────────────────────────
+   TITLE
+───────────────────────────────────────────── */
+
 .qr-title {
     font-size: 18px;
     font-weight: 700;
@@ -371,80 +388,155 @@ QR_SCANNER_CSS = """
     margin-bottom: 8px;
 }
 
+
+/* ─────────────────────────────────────────────
+   VIDEO
+───────────────────────────────────────────── */
+
 .video-container {
     position: relative;
+
     width: 100%;
+
     overflow: hidden;
-    border-radius: 12px;
+
+    border-radius: 14px;
+
     background: #000;
 }
+
 
 #qr-video {
     display: block;
+
     width: 100%;
-    max-height: 420px;
+
+    height: auto;
+
+    min-height: 260px;
+
+    max-height: 430px;
+
     object-fit: cover;
+
     background: #000;
 }
 
+
+/* ─────────────────────────────────────────────
+   SCAN AREA
+───────────────────────────────────────────── */
+
 .scan-frame {
+
     position: absolute;
+
     width: 68%;
+
     aspect-ratio: 1 / 1;
+
     max-height: 80%;
+
     left: 50%;
     top: 50%;
-    transform: translate(-50%, -50%);
+
+    transform:
+        translate(-50%, -50%);
+
     pointer-events: none;
 }
 
+
 .corner {
+
     position: absolute;
-    width: 34px;
-    height: 34px;
-    border-color: #00ff88;
+
+    width: 35px;
+    height: 35px;
 }
+
 
 .tl {
+
     top: 0;
     left: 0;
-    border-top: 4px solid #00ff88;
-    border-left: 4px solid #00ff88;
+
+    border-top:
+        4px solid #00ff88;
+
+    border-left:
+        4px solid #00ff88;
 }
+
 
 .tr {
+
     top: 0;
     right: 0;
-    border-top: 4px solid #00ff88;
-    border-right: 4px solid #00ff88;
+
+    border-top:
+        4px solid #00ff88;
+
+    border-right:
+        4px solid #00ff88;
 }
+
 
 .bl {
+
     bottom: 0;
     left: 0;
-    border-bottom: 4px solid #00ff88;
-    border-left: 4px solid #00ff88;
+
+    border-bottom:
+        4px solid #00ff88;
+
+    border-left:
+        4px solid #00ff88;
 }
+
 
 .br {
+
     bottom: 0;
     right: 0;
-    border-bottom: 4px solid #00ff88;
-    border-right: 4px solid #00ff88;
+
+    border-bottom:
+        4px solid #00ff88;
+
+    border-right:
+        4px solid #00ff88;
 }
+
+
+/* ─────────────────────────────────────────────
+   ANIMATED SCAN LINE
+───────────────────────────────────────────── */
 
 .scan-line {
+
     position: absolute;
+
     width: 100%;
+
     height: 2px;
+
     background: #00ff88;
-    box-shadow: 0 0 8px #00ff88;
-    animation: scan 2s linear infinite;
+
+    box-shadow:
+        0 0 8px #00ff88;
+
+    animation:
+        scan-animation
+        2s
+        linear
+        infinite;
 }
 
-@keyframes scan {
+
+@keyframes scan-animation {
+
     0% {
-        top: 0;
+        top: 0%;
     }
 
     50% {
@@ -452,54 +544,89 @@ QR_SCANNER_CSS = """
     }
 
     100% {
-        top: 0;
+        top: 0%;
     }
 }
 
+
+/* ─────────────────────────────────────────────
+   STATUS
+───────────────────────────────────────────── */
+
 .status {
+
     margin-top: 8px;
-    padding: 8px;
+
+    padding: 9px;
+
     text-align: center;
+
     border-radius: 8px;
-    background: rgba(128,128,128,0.15);
+
+    background:
+        rgba(128,128,128,0.15);
+
     font-size: 14px;
 }
 
+
+/* ─────────────────────────────────────────────
+   BUTTONS
+───────────────────────────────────────────── */
+
 .button-row {
+
     display: flex;
+
     gap: 8px;
+
     margin-top: 8px;
 }
 
+
 .button-row button {
+
     flex: 1;
-    min-height: 44px;
+
+    min-height: 46px;
+
     border: none;
-    border-radius: 8px;
+
+    border-radius: 9px;
+
     font-size: 15px;
+
     font-weight: 600;
+
     cursor: pointer;
 }
 
+
 #start-camera {
+
     background: #00875a;
+
     color: white;
 }
 
+
 #stop-camera {
+
     background: #555;
+
     color: white;
 }
 """
 
 
 QR_SCANNER_JS = """
-export default function(component) {
+export default async function(component) {
 
     const {
         parentElement,
         setTriggerValue
     } = component;
+
 
     const video =
         parentElement.querySelector("#qr-video");
@@ -514,196 +641,277 @@ export default function(component) {
         parentElement.querySelector("#stop-camera");
 
 
-    // ---------------------------------------------------------
-    // Preserve camera information on the DOM element itself.
-    //
-    // Components V2 can execute again after a Streamlit rerun.
-    // Keeping these variables attached to the video element
-    // prevents unnecessary camera recreation.
-    // ---------------------------------------------------------
+    // ============================================================
+    // Prevent duplicate initialization
+    // ============================================================
 
-    if (video._qrRunning === undefined) {
-        video._qrRunning = false;
+    if (video._scannerInitialized) {
+        return;
     }
 
-    if (video._qrStream === undefined) {
-        video._qrStream = null;
-    }
+    video._scannerInitialized = true;
 
-    if (video._qrTimer === undefined) {
-        video._qrTimer = null;
-    }
 
-    if (video._lastCode === undefined) {
-        video._lastCode = "";
-    }
+    video._controls = null;
+    video._reader = null;
 
-    if (video._lastTime === undefined) {
-        video._lastTime = 0;
-    }
+    video._lastCode = "";
+    video._lastReadTime = 0;
+
+    video._running = false;
 
 
     function setStatus(message) {
+
         status.textContent = message;
     }
 
 
-    // ---------------------------------------------------------
+    // ============================================================
+    // Load ZXing
+    // ============================================================
+
+    async function loadZXing() {
+
+        setStatus(
+            "QRライブラリを読み込んでいます..."
+        );
+
+
+        try {
+
+            const ZXing =
+                await import(
+                    "https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/+esm"
+                );
+
+
+            return ZXing;
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "ZXing load error:",
+                error
+            );
+
+
+            setStatus(
+                "QRライブラリの読み込みに失敗しました"
+            );
+
+
+            throw error;
+        }
+    }
+
+
+    // ============================================================
     // Stop camera
-    // ---------------------------------------------------------
+    // ============================================================
 
     function stopCamera() {
 
-        video._qrRunning = false;
+        video._running = false;
 
-        if (video._qrTimer) {
-            clearTimeout(video._qrTimer);
-            video._qrTimer = null;
+
+        // Stop ZXing scanner
+
+        if (video._controls) {
+
+            try {
+
+                video._controls.stop();
+
+            }
+
+            catch (error) {
+
+                console.log(
+                    "ZXing stop:",
+                    error
+                );
+            }
+
+            video._controls = null;
         }
 
-        if (video._qrStream) {
 
-            video._qrStream
-                .getTracks()
-                .forEach(track => track.stop());
+        // Stop camera tracks as extra safety
 
-            video._qrStream = null;
+        if (video.srcObject) {
+
+            try {
+
+                const tracks =
+                    video.srcObject.getTracks();
+
+                tracks.forEach(
+                    track => track.stop()
+                );
+
+            }
+
+            catch (error) {
+
+                console.log(
+                    "Camera stop:",
+                    error
+                );
+            }
+
         }
+
 
         video.srcObject = null;
 
-        setStatus("カメラ停止中");
+
+        setStatus(
+            "カメラ停止中"
+        );
     }
 
 
-    // ---------------------------------------------------------
-    // QR detection loop
-    // ---------------------------------------------------------
+    // ============================================================
+    // QR detected
+    // ============================================================
 
-    async function detectQR() {
+    function qrDetected(text) {
 
-        if (!video._qrRunning) {
+        if (!text) {
             return;
         }
 
-        try {
 
-            if (
-                typeof BarcodeDetector === "undefined"
-            ) {
-
-                setStatus(
-                    "このブラウザではQRコード読み取りAPIが利用できません。"
-                );
-
-                video._qrRunning = false;
-                return;
-            }
+        const value =
+            String(text).trim();
 
 
-            if (!video._barcodeDetector) {
-
-                video._barcodeDetector =
-                    new BarcodeDetector({
-                        formats: ["qr_code"]
-                    });
-            }
-
-
-            if (
-                video.readyState >= 2 &&
-                video.videoWidth > 0
-            ) {
-
-                const codes =
-                    await video._barcodeDetector.detect(video);
-
-
-                if (codes.length > 0) {
-
-                    const value =
-                        codes[0].rawValue.trim();
-
-                    const now = Date.now();
-
-
-                    // Prevent the same QR from being
-                    // transmitted repeatedly.
-                    if (
-                        value &&
-                        (
-                            value !== video._lastCode ||
-                            now - video._lastTime > 3000
-                        )
-                    ) {
-
-                        video._lastCode = value;
-                        video._lastTime = now;
-
-                        setStatus(
-                            "✓ 読み取り成功: " + value
-                        );
-
-
-                        // iPhone vibration when supported
-                        if (navigator.vibrate) {
-                            navigator.vibrate(100);
-                        }
-
-
-                        // Send QR to Python / Streamlit
-                        setTriggerValue(
-                            "qr_code",
-                            value
-                        );
-
-
-                        // Pause briefly after successful read
-                        video._qrTimer =
-                            setTimeout(
-                                detectQR,
-                                1500
-                            );
-
-                        return;
-                    }
-                }
-            }
-
-        } catch (error) {
-
-            console.log(
-                "QR detection:",
-                error
-            );
+        if (!value) {
+            return;
         }
 
 
-        video._qrTimer =
-            setTimeout(
-                detectQR,
-                200
-            );
+        const now =
+            Date.now();
+
+
+        // --------------------------------------------------------
+        // Prevent the same QR from being sent repeatedly
+        // --------------------------------------------------------
+
+        if (
+            value === video._lastCode &&
+            now - video._lastReadTime < 4000
+        ) {
+
+            return;
+        }
+
+
+        video._lastCode =
+            value;
+
+        video._lastReadTime =
+            now;
+
+
+        // --------------------------------------------------------
+        // Visual feedback
+        // --------------------------------------------------------
+
+        setStatus(
+            "✓ 読み取り成功: " + value
+        );
+
+
+        // --------------------------------------------------------
+        // Vibration
+        // --------------------------------------------------------
+
+        if (
+            navigator.vibrate
+        ) {
+
+            try {
+
+                navigator.vibrate(100);
+
+            }
+
+            catch (error) {
+
+                // Safari may ignore vibration.
+            }
+        }
+
+
+        // --------------------------------------------------------
+        // Send QR to Streamlit / Python
+        // --------------------------------------------------------
+
+        setTriggerValue(
+            "qr_code",
+            value
+        );
     }
 
 
-    // ---------------------------------------------------------
-    // Start camera
-    // ---------------------------------------------------------
+    // ============================================================
+    // Start camera + ZXing
+    // ============================================================
 
     async function startCamera() {
 
-        if (video._qrRunning) {
+        if (video._running) {
+
             return;
         }
 
 
+        video._running = true;
+
+
+        setStatus(
+            "カメラを起動しています..."
+        );
+
+
         try {
 
-            setStatus(
-                "カメラを起動しています..."
-            );
+            // ----------------------------------------------------
+            // Load ZXing
+            // ----------------------------------------------------
 
+            const ZXing =
+                await loadZXing();
+
+
+            // ----------------------------------------------------
+            // QR-only reader
+            // ----------------------------------------------------
+
+            const reader =
+                new ZXing.BrowserQRCodeReader(
+                    undefined,
+                    {
+                        delayBetweenScanAttempts: 200,
+                        delayBetweenScanSuccess: 800
+                    }
+                );
+
+
+            video._reader =
+                reader;
+
+
+            // ----------------------------------------------------
+            // Camera constraints
+            //
+            // facingMode environment asks iPhone for rear camera.
+            // ----------------------------------------------------
 
             const constraints = {
 
@@ -726,19 +934,54 @@ export default function(component) {
             };
 
 
-            const stream =
-                await navigator.mediaDevices
-                    .getUserMedia(constraints);
+            setStatus(
+                "カメラを準備しています..."
+            );
 
 
-            video._qrStream = stream;
+            // ----------------------------------------------------
+            // Continuous QR scanning
+            // ----------------------------------------------------
 
-            video.srcObject = stream;
+            const controls =
+                await reader.decodeFromConstraints(
 
-            await video.play();
+                    constraints,
+
+                    video,
+
+                    (result, error, controls) => {
+
+                        if (!video._running) {
+
+                            return;
+                        }
 
 
-            video._qrRunning = true;
+                        // QR FOUND
+
+                        if (result) {
+
+                            const text =
+                                result.getText();
+
+                            qrDetected(
+                                text
+                            );
+                        }
+
+
+                        // Most ZXing errors simply mean:
+                        // "QR not found in this frame".
+                        //
+                        // Therefore we intentionally don't
+                        // display them to the operator.
+                    }
+                );
+
+
+            video._controls =
+                controls;
 
 
             setStatus(
@@ -746,60 +989,118 @@ export default function(component) {
             );
 
 
-            detectQR();
+        }
+
+        catch (error) {
+
+            console.error(
+                "Camera / ZXing error:",
+                error
+            );
 
 
-        } catch (error) {
+            video._running =
+                false;
 
-            console.error(error);
 
-            video._qrRunning = false;
-
+            // ----------------------------------------------------
+            // Permission error
+            // ----------------------------------------------------
 
             if (
-                error.name ===
-                "NotAllowedError"
+                error &&
+                error.name === "NotAllowedError"
             ) {
 
                 setStatus(
-                    "カメラの使用が許可されていません。Safariの設定を確認してください。"
+                    "カメラの使用が許可されていません。Safariのカメラ設定を確認してください。"
                 );
 
-            } else {
+            }
+
+
+            // ----------------------------------------------------
+            // No camera
+            // ----------------------------------------------------
+
+            else if (
+                error &&
+                error.name === "NotFoundError"
+            ) {
 
                 setStatus(
-                    "カメラを起動できません: " +
-                    error.message
+                    "カメラが見つかりません"
+                );
+
+            }
+
+
+            // ----------------------------------------------------
+            // Generic error
+            // ----------------------------------------------------
+
+            else {
+
+                const message =
+                    error && error.message
+                        ? error.message
+                        : String(error);
+
+
+                setStatus(
+                    "カメラ起動エラー: " +
+                    message
                 );
             }
         }
     }
 
 
+    // ============================================================
+    // Buttons
+    // ============================================================
+
     startButton.onclick =
-        startCamera;
+        function() {
+
+            startCamera();
+        };
+
 
     stopButton.onclick =
-        stopCamera;
+        function() {
+
+            stopCamera();
+        };
 
 
-    // ---------------------------------------------------------
+    // ============================================================
     // Automatically start camera
-    // ---------------------------------------------------------
+    // ============================================================
 
-    if (!video._qrRunning) {
-        startCamera();
-    }
+    startCamera();
 }
 """
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Register Streamlit V2 component
+# ─────────────────────────────────────────────────────────────────────────────
+
 qr_scanner_component = st.components.v2.component(
-    name="aitech_qr_scanner",
+
+    name="aitech_qr_scanner_zxing",
+
     html=QR_SCANNER_HTML,
+
     css=QR_SCANNER_CSS,
+
     js=QR_SCANNER_JS,
 )
+
+
+
+
 
 
 
@@ -844,19 +1145,20 @@ if st.session_state["show_success"]:
         st.rerun()
     st.stop()
 
-# Step 3 — QR / manual input
+
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 3 — QR / manual input
 # ─────────────────────────────────────────────────────────────────────────────
 
-col1, col2 = st.columns([1.3, 1])
+col1, col2 = st.columns([1.4, 1])
 
 with col1:
 
     qr_result = qr_scanner_component(
-        key="qr_scanner_v2",
+        key="qr_scanner_zxing",
         on_qr_code_change=lambda: None,
     )
 
@@ -884,22 +1186,18 @@ production_order = ""
 is_split = False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# QR input
-# ─────────────────────────────────────────────────────────────────────────────
+# ── QR ────────────────────────────────────────────────────────────────────────
 
 if qr_code:
 
     scanned = str(qr_code).strip()
 
-    # QR already contains PO-
     if scanned.upper().startswith("PO-"):
 
         production_order = scanned.upper()
 
     else:
 
-        # QR contains only the numeric part
         numeric = "".join(
             c for c in scanned
             if c.isdigit()
@@ -915,13 +1213,10 @@ if qr_code:
 
             production_order = scanned
 
-
     st.session_state["reset_form"] = False
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Manual input
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Manual ────────────────────────────────────────────────────────────────────
 
 elif input_manual:
 
@@ -936,6 +1231,9 @@ elif input_manual:
         production_order = (
             f"PO-{manual.zfill(6)}"
         )
+
+
+
 
 
 
