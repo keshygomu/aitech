@@ -960,16 +960,6 @@ export default async function(component) {
         );
     }
 
-        // --------------------------------------------------------
-        // Send QR to Streamlit / Python
-        // --------------------------------------------------------
-
-        setTriggerValue(
-            "qr_code",
-            value
-        );
-    }
-
 
     // ============================================================
     // Start camera + ZXing
@@ -1233,7 +1223,7 @@ if not st.session_state["owner"]:
 
 # Step 2 — success screen
 if st.session_state["show_success"]:
-    msg = "登録が正常に更新されました！"
+    msg = "登録が正常に完了しました！"
     st.success(msg)
     d = st.session_state["success_data"]
     col1, col2 = st.columns(2)
@@ -1376,61 +1366,111 @@ is_split = False
 
 
 
-
+# ─────────────────────────────────────────────────────────────────────────────
 # Step 4 — Main form
+# ─────────────────────────────────────────────────────────────────────────────
+
 if production_order and not st.session_state["registered"]:
 
     work_orders = fetch_work_orders(production_order)
+
     if not work_orders:
         st.warning("この移行票に対応する記録が見つかりませんでした。")
         st.stop()
 
-    done_orders = [r for r in work_orders if r.get("snps_um__Status__c") == "Done"]
+    done_orders = [
+        r for r in work_orders
+        if r.get("snps_um__Status__c") == "Done"
+    ]
+
     if not done_orders:
         st.warning("この移行票には完了済みの工程がありません。")
         st.stop()
 
-    # Default to most recent Done record
+
+    # ── Último processo concluído ─────────────────────────────────────────────
+
     latest = done_orders[0]
     fields = extract_work_order_fields(latest)
 
-    # Fetch material info once
+
+    # ── Material ──────────────────────────────────────────────────────────────
+
     mat_info = {}
+
     if fields["item_id"]:
         try:
             mat_info = fetch_materials(fields["item_id"])
         except Exception as e:
-            st.warning(f"材料情報の取得をスキップしました: {e}")
+            st.warning(
+                f"材料情報の取得をスキップしました: {e}"
+            )
 
-    # Check if a record already exists today
-    today_key, today_record = find_record_for_today(production_order)
+
+    # ── Verifica registro existente ───────────────────────────────────────────
+
+    today_key, today_record = find_record_for_today(
+        production_order
+    )
+
     already_registered = today_key is not None
 
     firebase_qty_today = (
-        get_latest_firebase_quantity(today_record) if already_registered else None
+        get_latest_firebase_quantity(today_record)
+        if already_registered
+        else None
     )
-    display_qty = firebase_qty_today if already_registered else fields["actual_qty"]
 
-    # ── Action buttons OUTSIDE the form (avoids Streamlit ambiguity) ─────────
-    st.subheader(f"在庫登録 — {production_order}")
-    st.subheader(fields["product_code"])
+    display_qty = (
+        firebase_qty_today
+        if already_registered
+        else fields["actual_qty"]
+    )
+
+
+    # ── Cabeçalho ─────────────────────────────────────────────────────────────
+
+    st.subheader(
+        f"在庫登録 — {production_order}"
+    )
+
+    st.subheader(
+        fields["product_code"]
+    )
+
 
     if already_registered:
+
         st.markdown(
-            '<p style="color:yellow;font-weight:bold;font-size:24px;text-align:center;">'
-            "登　録　済　み　！！</p>",
+            '<p style="color:yellow;'
+            'font-weight:bold;'
+            'font-size:24px;'
+            'text-align:center;">'
+            '登　録　済　み　！！'
+            '</p>',
             unsafe_allow_html=True,
         )
-        st.info(f"本日のFirebase登録数量: {firebase_qty_today}")
 
-    # ── Form (data entry only, no submit ambiguity) ──────────────────────────
+        st.info(
+            f"本日のFirebase登録数量: "
+            f"{firebase_qty_today}"
+        )
+
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Form
+    # ─────────────────────────────────────────────────────────────────────────
+
     with st.form("form_inventory"):
+
         qty_input = st.number_input(
             "最後の完了工程の登録数",
             value=int(display_qty),
             step=1,
             key="qty_form",
         )
+
+
         process_order_input = st.number_input(
             "工程順序 (10〜999)",
             min_value=10,
@@ -1440,99 +1480,245 @@ if production_order and not st.session_state["registered"]:
             key="po_form",
         )
 
-        # Re-fetch if process order changed
-        if st.session_state["current_process_order"] != process_order_input:
-            st.session_state["current_process_order"] = process_order_input
-            if process_order_input != fields["process_order_no"]:
-                updated = fetch_work_orders(production_order, process_order_input)
+
+        # ── Processo alterado ─────────────────────────────────────────────────
+
+        if (
+            st.session_state["current_process_order"]
+            != process_order_input
+        ):
+
+            st.session_state[
+                "current_process_order"
+            ] = process_order_input
+
+
+            if (
+                process_order_input
+                != fields["process_order_no"]
+            ):
+
+                updated = fetch_work_orders(
+                    production_order,
+                    process_order_input,
+                )
+
+
                 if updated:
-                    fields = extract_work_order_fields(updated[0])
+
+                    fields = extract_work_order_fields(
+                        updated[0]
+                    )
+
                 else:
-                    st.warning(f"工程順序 {process_order_input} に対応する記録が見つかりませんでした。")
+
+                    st.warning(
+                        f"工程順序 {process_order_input} "
+                        "に対応する記録が見つかりませんでした。"
+                    )
+
                     fields["work_place"] = ""
                     fields["stock_place"] = ""
                     fields["cumulative_cost"] = 0.0
                     fields["process_name"] = ""
                     fields["dept_name"] = ""
 
+
+        # ── Informações ───────────────────────────────────────────────────────
+
         col_a, col_b = st.columns(2)
+
+
         with col_a:
-            st.write(f"作業場所: {fields['work_place']}")
-            st.write(f"在庫場所: {fields['stock_place']}")
-            st.write(f"部門名: {fields['dept_name']}")
-            division_cb = st.checkbox("分割")
+
+            st.write(
+                f"作業場所: {fields['work_place']}"
+            )
+
+            st.write(
+                f"在庫場所: {fields['stock_place']}"
+            )
+
+            st.write(
+                f"部門名: {fields['dept_name']}"
+            )
+
+            division_cb = st.checkbox(
+                "分割"
+            )
+
+
         with col_b:
-            st.write(f"工程名: {fields['process_name']}")
 
-        submit_btn = st.form_submit_button("登録")
+            st.write(
+                f"工程名: {fields['process_name']}"
+            )
 
-    # ── Process submission ───────────────────────────────────────────────────
-    action = None
+
+        submit_btn = st.form_submit_button(
+            "登録"
+        )
+
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # REGISTER
+    # IMPORTANTE: continua dentro do IF production_order
+    # ─────────────────────────────────────────────────────────────────────────
+
     if submit_btn:
-        action = "register"
 
-    
-if action and fields["work_place"]:
+        if not fields["work_place"]:
 
-    # Número original lido pelo QR
-    base_po_name = production_order
+            st.error(
+                "作業場所が取得できませんでした。"
+                "工程順序を確認してください。"
+            )
 
-    # Mantém a lógica atual de 分割
-    if division_cb:
-        base_po_name += "-1"
+        else:
 
-    # Procura automaticamente um nome disponível:
-    #
-    # PO-123456
-    # PO-123456-A
-    # PO-123456-B
-    # PO-123456-C
-    #
-    po_name = get_unique_production_order(base_po_name)
+            # Número original
+            base_po_name = production_order
 
-    dt_str = now_jst().strftime("%Y-%m-%d %H:%M:%S")
 
-    data_to_save = {
-        "datetime": dt_str,
-        "production_order": po_name,
-        "quantity": int(qty_input),
-        "owner": st.session_state["owner"],
-        "product_code": fields["product_code"],
-        "process_name": fields["process_name"],
-        "process_order": int(process_order_input),
-        "work_place": fields["work_place"],
-        "stock_place": fields["stock_place"],
-        "dept_name": fields["dept_name"],
-        "cumulative_cost": fields["cumulative_cost"],
-        "material": mat_info.get("material", ""),
-        "material_provision_type": mat_info.get("payment_type", ""),
-        "material_weight": mat_info.get("weight", 0),
-    }
+            # Mantém a função 分割
+            if division_cb:
+                base_po_name += "-1"
 
-    # Cada registro é independente.
-    firebase_push(data_to_save)
 
-    # Se houve sufixo, consideramos uma repetição
-    was_update = (po_name != base_po_name)
+            # ─────────────────────────────────────────────────────────────────
+            # Determina nome único
+            #
+            # primeira vez:
+            # PO-123456
+            #
+            # segunda:
+            # PO-123456-A
+            #
+            # terceira:
+            # PO-123456-B
+            # ─────────────────────────────────────────────────────────────────
 
-    st.session_state.update({
-        "registered": True,
-        "was_update": was_update,
-        "show_success": True,
+            po_name = get_unique_production_order(
+                base_po_name
+            )
 
-        "success_data": {
-            "production_order": po_name,
-            "product_code": fields["product_code"],
-            "work_place": fields["work_place"],
-            "stock_place": fields["stock_place"],
-            "process_name": fields["process_name"],
-            "dept_name": fields["dept_name"],
-            "quantity": int(qty_input),
-            "process_order": int(process_order_input),
-        },
-    })
 
-    st.rerun()
+            dt_str = now_jst().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+
+
+            data_to_save = {
+
+                "datetime": dt_str,
+
+                "production_order": po_name,
+
+                "quantity": int(qty_input),
+
+                "owner":
+                    st.session_state["owner"],
+
+                "product_code":
+                    fields["product_code"],
+
+                "process_name":
+                    fields["process_name"],
+
+                "process_order":
+                    int(process_order_input),
+
+                "work_place":
+                    fields["work_place"],
+
+                "stock_place":
+                    fields["stock_place"],
+
+                "dept_name":
+                    fields["dept_name"],
+
+                "cumulative_cost":
+                    fields["cumulative_cost"],
+
+                "material":
+                    mat_info.get(
+                        "material",
+                        ""
+                    ),
+
+                "material_provision_type":
+                    mat_info.get(
+                        "payment_type",
+                        ""
+                    ),
+
+                "material_weight":
+                    mat_info.get(
+                        "weight",
+                        0
+                    ),
+            }
+
+
+            # ─────────────────────────────────────────────────────────────────
+            # Firebase
+            #
+            # SEMPRE cria registro independente
+            # ─────────────────────────────────────────────────────────────────
+
+            firebase_push(
+                data_to_save
+            )
+
+
+            # ─────────────────────────────────────────────────────────────────
+            # Tela de sucesso
+            # ─────────────────────────────────────────────────────────────────
+
+            st.session_state.update({
+
+                "registered": True,
+
+                "was_update":
+                    po_name != base_po_name,
+
+                "show_success": True,
+
+                "success_data": {
+
+                    "production_order":
+                        po_name,
+
+                    "product_code":
+                        fields["product_code"],
+
+                    "work_place":
+                        fields["work_place"],
+
+                    "stock_place":
+                        fields["stock_place"],
+
+                    "process_name":
+                        fields["process_name"],
+
+                    "dept_name":
+                        fields["dept_name"],
+
+                    "quantity":
+                        int(qty_input),
+
+                    "process_order":
+                        int(process_order_input),
+                },
+            })
+
+
+            st.rerun()
+
+
+
+
+
 
 elif action and not fields["work_place"]:
     st.error("作業場所が取得できませんでした。工程順序を確認してください。")
