@@ -1534,5 +1534,5 @@ if action and fields["work_place"]:
 
     st.rerun()
 
-    elif action and not fields["work_place"]:
-        st.error("作業場所が取得できませんでした。工程順序を確認してください。")
+elif action and not fields["work_place"]:
+    st.error("作業場所が取得できませんでした。工程順序を確認してください。")
