@@ -232,6 +232,68 @@ def firebase_push(data: dict) -> str:
     return new_record.key
 
 
+def get_unique_production_order(base_production_order: str) -> str:
+    """
+    Retorna um número de 移行票 único para o dia atual.
+
+    Exemplo:
+        PO-123456
+        PO-123456-A
+        PO-123456-B
+        PO-123456-C
+        ...
+
+    Se PO-123456 ainda não existe hoje:
+        -> PO-123456
+
+    Se já existe:
+        -> procura -A, -B, -C...
+    """
+
+    records = firebase_ref().get() or {}
+
+    existing_names = {
+        str(record.get("production_order", ""))
+        for record in records.values()
+        if isinstance(record, dict)
+    }
+
+    # Primeiro registro do dia
+    if base_production_order not in existing_names:
+        return base_production_order
+
+    # Registros repetidos: A ... Z
+    for i in range(26):
+
+        suffix = chr(ord("A") + i)
+
+        candidate = f"{base_production_order}-{suffix}"
+
+        if candidate not in existing_names:
+            return candidate
+
+    # Segurança caso ultrapasse Z
+    # AA, AB, AC...
+    index = 26
+
+    while True:
+
+        first = chr(ord("A") + (index // 26) - 1)
+        second = chr(ord("A") + (index % 26))
+
+        suffix = first + second
+
+        candidate = f"{base_production_order}-{suffix}"
+
+        if candidate not in existing_names:
+            return candidate
+
+        index += 1
+
+
+
+
+
 def firebase_update(record_key: str, data: dict):
     firebase_ref(record_key).update(data)
 
@@ -787,70 +849,116 @@ export default async function(component) {
         if (!text) {
             return;
         }
-
-
-        const value =
-            String(text).trim();
-
-
+    
+        const value = String(text).trim();
+    
         if (!value) {
             return;
         }
-
-
-        const now =
-            Date.now();
-
-
-        // --------------------------------------------------------
-        // Prevent the same QR from being sent repeatedly
-        // --------------------------------------------------------
-
+    
+        const now = Date.now();
+    
+        // Evita leituras duplicadas
         if (
             value === video._lastCode &&
             now - video._lastReadTime < 4000
         ) {
-
             return;
         }
-
-
-        video._lastCode =
-            value;
-
-        video._lastReadTime =
-            now;
-
-
-        // --------------------------------------------------------
-        // Visual feedback
-        // --------------------------------------------------------
-
+    
+        video._lastCode = value;
+        video._lastReadTime = now;
+    
+    
+        // ─────────────────────────────────────────────
+        // Feedback
+        // ─────────────────────────────────────────────
+    
         setStatus(
             "✓ 読み取り成功: " + value
         );
-
-
-        // --------------------------------------------------------
-        // Vibration
-        // --------------------------------------------------------
-
-        if (
-            navigator.vibrate
-        ) {
-
+    
+    
+        // Vibração quando suportada
+        if (navigator.vibrate) {
+    
             try {
-
                 navigator.vibrate(100);
-
             }
-
             catch (error) {
-
-                // Safari may ignore vibration.
+                // Safari pode simplesmente ignorar.
             }
         }
-
+    
+    
+        // ─────────────────────────────────────────────
+        // IMPORTANTE:
+        // envia primeiro o QR para Streamlit
+        // ─────────────────────────────────────────────
+    
+        setTriggerValue(
+            "qr_code",
+            value
+        );
+    
+    
+        // ─────────────────────────────────────────────
+        // PARA O SCANNER
+        // ─────────────────────────────────────────────
+    
+        video._running = false;
+    
+    
+        // Para ZXing
+        if (video._controls) {
+    
+            try {
+                video._controls.stop();
+            }
+            catch (error) {
+                console.log(
+                    "ZXing stop after read:",
+                    error
+                );
+            }
+    
+            video._controls = null;
+        }
+    
+    
+        // ─────────────────────────────────────────────
+        // PARA FISICAMENTE A CÂMERA
+        // ─────────────────────────────────────────────
+    
+        if (video.srcObject) {
+    
+            try {
+    
+                const tracks =
+                    video.srcObject.getTracks();
+    
+                tracks.forEach(
+                    track => track.stop()
+                );
+    
+            }
+            catch (error) {
+    
+                console.log(
+                    "Camera stop after read:",
+                    error
+                );
+            }
+        }
+    
+    
+        video.srcObject = null;
+    
+    
+        setStatus(
+            "✓ 読み取り完了 — カメラ停止"
+        );
+    }
 
         // --------------------------------------------------------
         // Send QR to Streamlit / Python
@@ -1125,7 +1233,7 @@ if not st.session_state["owner"]:
 
 # Step 2 — success screen
 if st.session_state["show_success"]:
-    msg = "登録が正常に更新されました！" if st.session_state["was_update"] else "登録が正常に完了しました！"
+    msg = "登録が正常に更新されました！"
     st.success(msg)
     d = st.session_state["success_data"]
     col1, col2 = st.columns(2)
@@ -1363,52 +1471,68 @@ if production_order and not st.session_state["registered"]:
     if submit_btn:
         action = "register"
 
+    
     if action and fields["work_place"]:
-        po_name = production_order + ("-1" if division_cb else "")
-        dt_str = now_jst().strftime("%Y-%m-%d %H:%M:%S")
 
-        data_to_save = {
-            "datetime": dt_str,
+    # Número original lido pelo QR
+    base_po_name = production_order
+
+    # Mantém a lógica atual de 分割
+    if division_cb:
+        base_po_name += "-1"
+
+    # Procura automaticamente um nome disponível:
+    #
+    # PO-123456
+    # PO-123456-A
+    # PO-123456-B
+    # PO-123456-C
+    #
+    po_name = get_unique_production_order(base_po_name)
+
+    dt_str = now_jst().strftime("%Y-%m-%d %H:%M:%S")
+
+    data_to_save = {
+        "datetime": dt_str,
+        "production_order": po_name,
+        "quantity": int(qty_input),
+        "owner": st.session_state["owner"],
+        "product_code": fields["product_code"],
+        "process_name": fields["process_name"],
+        "process_order": int(process_order_input),
+        "work_place": fields["work_place"],
+        "stock_place": fields["stock_place"],
+        "dept_name": fields["dept_name"],
+        "cumulative_cost": fields["cumulative_cost"],
+        "material": mat_info.get("material", ""),
+        "material_provision_type": mat_info.get("payment_type", ""),
+        "material_weight": mat_info.get("weight", 0),
+    }
+
+    # Cada registro é independente.
+    firebase_push(data_to_save)
+
+    # Se houve sufixo, consideramos uma repetição
+    was_update = (po_name != base_po_name)
+
+    st.session_state.update({
+        "registered": True,
+        "was_update": was_update,
+        "show_success": True,
+
+        "success_data": {
             "production_order": po_name,
-            "quantity": int(qty_input),
-            "owner": st.session_state["owner"],
             "product_code": fields["product_code"],
-            "process_name": fields["process_name"],
-            "process_order": int(process_order_input),
             "work_place": fields["work_place"],
             "stock_place": fields["stock_place"],
+            "process_name": fields["process_name"],
             "dept_name": fields["dept_name"],
-            "cumulative_cost": fields["cumulative_cost"],
-            "material": mat_info.get("material", ""),
-            "material_provision_type": mat_info.get("payment_type", ""),
-            "material_weight": mat_info.get("weight", 0),
-        }
+            "quantity": int(qty_input),
+            "process_order": int(process_order_input),
+        },
+    })
 
-        was_update = False
-        existing_key, _ = find_record_for_today(po_name)
-
-        if existing_key:
-            firebase_append(existing_key, data_to_save)
-            was_update = True
-        else:
-            firebase_push(data_to_save)
-
-        st.session_state.update({
-            "registered": True,
-            "was_update": was_update,
-            "show_success": True,
-            "success_data": {
-                "production_order": po_name,
-                "product_code": fields["product_code"],
-                "work_place": fields["work_place"],
-                "stock_place": fields["stock_place"],
-                "process_name": fields["process_name"],
-                "dept_name": fields["dept_name"],
-                "quantity": int(qty_input),
-                "process_order": int(process_order_input),
-            },
-        })
-        st.rerun()
+    st.rerun()
 
     elif action and not fields["work_place"]:
         st.error("作業場所が取得できませんでした。工程順序を確認してください。")
